@@ -239,6 +239,7 @@ func _spawn_damage_number(amount: int, unit) -> void:
 func _remove_unit(unit) -> void:
 	map_data.clear_unit_at(unit.grid_x, unit.grid_z)
 	turn_manager.remove_unit(unit)
+	unit.cleanup_label()
 	unit.queue_free()
 
 
@@ -303,3 +304,4 @@ func _spawn_unit(scene, cfg: Dictionary, grid_pos: Vector2) -> void:
 	units_node.add_child(unit)
 	unit.place_on_grid(int(grid_pos.x), int(grid_pos.y), map_data)
 	map_data.set_unit_at(int(grid_pos.x), int(grid_pos.y), unit)
+	unit.setup_label(_camera, get_node("../UI"))

@@ -25,6 +25,32 @@ var has_acted: bool = false
 signal died(unit)
 
 var _hp_bar_fill: MeshInstance
+var _name_label: Label = null
+var _camera_ref: Camera = null
+
+
+func setup_label(camera: Camera, ui_node: Node) -> void:
+	_camera_ref = camera
+	_name_label = Label.new()
+	_name_label.text = unit_name
+	_name_label.rect_min_size = Vector2(80, 20)
+	_name_label.align = Label.ALIGN_CENTER
+	var color = Color(0.55, 0.75, 1.0) if team == Team.PLAYER else Color(1.0, 0.55, 0.55)
+	_name_label.add_color_override("font_color", color)
+	ui_node.add_child(_name_label)
+
+
+func cleanup_label() -> void:
+	if is_instance_valid(_name_label):
+		_name_label.queue_free()
+	_name_label = null
+
+
+func _process(_delta: float) -> void:
+	if _name_label and _camera_ref and is_instance_valid(_camera_ref):
+		var world_pos = global_transform.origin + Vector3(0, 2.0, 0)
+		var screen_pos = _camera_ref.unproject_position(world_pos)
+		_name_label.rect_position = screen_pos - Vector2(_name_label.rect_min_size.x * 0.5, 0)
 
 
 func _ready() -> void:
