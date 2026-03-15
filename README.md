@@ -7,9 +7,8 @@ A tactical RPG in the style of Final Fantasy Tactics and Vandal Hearts.
 A working battle prototype on a hand-crafted 6×6 map with 2 player units vs 2 enemies.
 
 **Controls**
-- **Q / E** — rotate camera
-- **Middle mouse drag** — pan camera
-- **Scroll wheel** — zoom
+- **A / D** — rotate camera left / right
+- **W / S** — zoom in / out
 - **Move / Attack / Wait** — action menu buttons (appear on player turn)
 - **Left click** — select a highlighted cell to move or attack
 - **Right click / Escape** — cancel targeting
