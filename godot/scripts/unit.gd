@@ -24,9 +24,56 @@ var has_acted: bool = false
 
 signal died(unit)
 
+var _hp_bar_fill: MeshInstance
+
 
 func _ready() -> void:
 	hp = max_hp
+	_apply_team_color()
+	_create_hp_bar()
+
+
+func _apply_team_color() -> void:
+	var mat := SpatialMaterial.new()
+	mat.albedo_color = Color(0.2, 0.4, 1.0) if team == Team.PLAYER else Color(0.9, 0.2, 0.2)
+	$Mesh.set_surface_material(0, mat)
+
+
+func _create_hp_bar() -> void:
+	var root := Spatial.new()
+	root.translation = Vector3(0, 1.6, 0)
+	root.rotation_degrees.x = -36
+	add_child(root)
+
+	var bg := MeshInstance.new()
+	var bg_mesh := CubeMesh.new()
+	bg_mesh.size = Vector3(0.8, 0.1, 0.02)
+	bg.mesh = bg_mesh
+	var bg_mat := SpatialMaterial.new()
+	bg_mat.albedo_color = Color(0.15, 0.15, 0.15)
+	bg_mat.flags_unshaded = true
+	bg.material_override = bg_mat
+	root.add_child(bg)
+
+	_hp_bar_fill = MeshInstance.new()
+	var fill_mesh := CubeMesh.new()
+	fill_mesh.size = Vector3(0.8, 0.1, 0.02)
+	_hp_bar_fill.mesh = fill_mesh
+	var fill_mat := SpatialMaterial.new()
+	fill_mat.albedo_color = Color(0.1, 0.85, 0.15)
+	fill_mat.flags_unshaded = true
+	_hp_bar_fill.material_override = fill_mat
+	_hp_bar_fill.translation.z = 0.015
+	root.add_child(_hp_bar_fill)
+
+
+func _update_hp_bar() -> void:
+	if not _hp_bar_fill:
+		return
+	var ratio := float(hp) / float(max_hp)
+	_hp_bar_fill.scale.x = max(0.01, ratio)
+	# Shift left so the bar drains from the right
+	_hp_bar_fill.translation.x = -0.4 * (1.0 - ratio)
 
 
 func is_alive() -> bool:
@@ -35,6 +82,7 @@ func is_alive() -> bool:
 
 func take_damage(amount: int) -> void:
 	hp = max(0, hp - amount)
+	_update_hp_bar()
 	if hp == 0:
 		emit_signal("died", self)
 

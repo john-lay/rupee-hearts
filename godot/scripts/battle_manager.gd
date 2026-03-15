@@ -24,6 +24,7 @@ var state: int = State.INIT
 var active_unit = null   # the unit currently taking their turn
 var _reachable_cells := []
 var _attack_targets := []
+var _active_indicator: MeshInstance
 
 # Spawn positions from the prototype map layout
 const PLAYER_STARTS = [Vector2(1, 4), Vector2(4, 4)]
@@ -44,7 +45,30 @@ func _ready() -> void:
 	call_deferred("_start_battle")
 
 
+func _create_active_indicator() -> void:
+	_active_indicator = MeshInstance.new()
+	var plane := PlaneMesh.new()
+	var cs = $"../GridMap".cell_size
+	plane.size = Vector2(cs.x * 0.85, cs.z * 0.85)
+	_active_indicator.mesh = plane
+	var mat := SpatialMaterial.new()
+	mat.albedo_color = Color(1.0, 0.85, 0.0)
+	mat.flags_unshaded = true
+	_active_indicator.material_override = mat
+	get_parent().add_child(_active_indicator)
+
+
+func _update_active_indicator() -> void:
+	if active_unit == null:
+		_active_indicator.visible = false
+		return
+	var pos = map_data.cell_to_world(active_unit.grid_x, active_unit.grid_z)
+	_active_indicator.translation = pos + Vector3(0, 0.05, 0)
+	_active_indicator.visible = true
+
+
 func _start_battle() -> void:
+	_create_active_indicator()
 	_change_state(State.TICK_CT)
 
 
@@ -67,6 +91,7 @@ func _change_state(new_state: int) -> void:
 		State.END_TURN:
 			_movement.clear_highlights()
 			active_unit = null
+			_update_active_indicator()
 			_change_state(State.TICK_CT)
 		State.ENEMY_THINK:
 			$"../AIController".take_turn(active_unit, map_data, self)
@@ -75,6 +100,7 @@ func _change_state(new_state: int) -> void:
 func _on_turn_ready(unit) -> void:
 	active_unit = unit
 	active_unit.start_turn()
+	_update_active_indicator()
 	if active_unit.team == active_unit.Team.PLAYER:
 		_change_state(State.SELECT_ACTION)
 	else:
@@ -101,6 +127,7 @@ func player_wait() -> void:
 func confirm_move(to_x: int, to_z: int) -> void:
 	_move_unit(active_unit, to_x, to_z)
 	active_unit.has_moved = true
+	_update_active_indicator()
 	_change_state(State.SELECT_ACTION)
 
 
@@ -180,10 +207,33 @@ func _resolve_combat(attacker, defender) -> void:
 	elif height_diff < 0:
 		damage = int(damage * 0.90)
 
+	_spawn_damage_number(damage, defender)
 	defender.take_damage(damage)
 	if not defender.is_alive():
 		_remove_unit(defender)
 		_check_battle_over()
+
+
+func _spawn_damage_number(amount: int, unit) -> void:
+	var label := Label.new()
+	label.text = str(amount)
+	label.add_color_override("font_color", Color(1.0, 0.9, 0.1))
+	get_node("../UI").add_child(label)
+
+	var world_pos = unit.global_transform.origin + Vector3(0, 2.0, 0)
+	var screen_pos = _camera.unproject_position(world_pos)
+	label.rect_position = screen_pos + Vector2(-12, 0)
+
+	var tween := Tween.new()
+	label.add_child(tween)
+	tween.interpolate_property(label, "rect_position",
+		label.rect_position, label.rect_position + Vector2(0, -50),
+		0.9, Tween.TRANS_LINEAR)
+	tween.interpolate_property(label, "modulate",
+		Color(1, 1, 1, 1), Color(1, 1, 1, 0),
+		0.9, Tween.TRANS_LINEAR)
+	tween.connect("tween_all_completed", label, "queue_free")
+	tween.start()
 
 
 func _remove_unit(unit) -> void:
