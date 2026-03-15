@@ -2,12 +2,12 @@
 
 importer="scene"
 type="PackedScene"
-path="res://.import/cube.glb-50f62336afd2613b9f840ad104b6459a.scn"
+path="res://.import/grass.glb-2c6fe4dd6a6c5f042da8c28f2a7466a7.scn"
 
 [deps]
 
-source_file="res://voxels/cube.glb"
-dest_files=[ "res://.import/cube.glb-50f62336afd2613b9f840ad104b6459a.scn" ]
+source_file="res://voxels/grass.glb"
+dest_files=[ "res://.import/grass.glb-2c6fe4dd6a6c5f042da8c28f2a7466a7.scn" ]
 
 [params]
 
