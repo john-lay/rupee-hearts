@@ -1,18 +1,60 @@
-[gd_scene load_steps=2 format=2]
+[gd_scene load_steps=11 format=2]
 
 [ext_resource path="res://grass_mesh_lib.tres" type="MeshLibrary" id=1]
+[ext_resource path="res://scripts/map_data.gd" type="Script" id=2]
+[ext_resource path="res://scripts/turn_manager.gd" type="Script" id=3]
+[ext_resource path="res://scripts/battle_manager.gd" type="Script" id=4]
+[ext_resource path="res://scripts/movement.gd" type="Script" id=5]
+[ext_resource path="res://scripts/ai_controller.gd" type="Script" id=6]
+[ext_resource path="res://scripts/camera_controller.gd" type="Script" id=7]
+[ext_resource path="res://scenes/ui/action_menu.tscn" type="PackedScene" id=8]
+[ext_resource path="res://scenes/ui/unit_stats_panel.tscn" type="PackedScene" id=9]
+[ext_resource path="res://scenes/ui/turn_order_bar.tscn" type="PackedScene" id=10]
 
-[node name="Spatial" type="Spatial"]
+[node name="Main" type="Spatial"]
 
 [node name="GridMap" type="GridMap" parent="."]
-transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, 0 )
 mesh_library = ExtResource( 1 )
-data = {
-"cells": PoolIntArray( 0, 0, 0, 1, 0, 0, 2, 0, 0, 65535, 0, 0, 0, 1, 0, 1, 1, 0, 2, 1, 0, 65535, 1, 0, 0, 2, 0, 1, 2, 0, 2, 2, 0, 65535, 2, 0, 0, 65535, 0, 1, 65535, 0, 2, 65535, 0, 65535, 65535, 0 )
-}
-__meta__ = {
-"_editor_clip_": 0
-}
 
-[node name="Camera" type="Camera" parent="."]
+[node name="MapData" type="Node" parent="."]
+script = ExtResource( 2 )
+
+[node name="TurnManager" type="Node" parent="."]
+script = ExtResource( 3 )
+
+[node name="BattleManager" type="Node" parent="."]
+script = ExtResource( 4 )
+
+[node name="Movement" type="Node" parent="."]
+script = ExtResource( 5 )
+
+[node name="AIController" type="Node" parent="."]
+script = ExtResource( 6 )
+
+[node name="Units" type="Spatial" parent="."]
+
+[node name="CameraRig" type="Spatial" parent="."]
+transform = Transform( 1, 0, 0, 0, 1, 0, 0, 0, 1, 5, 0, 5 )
+script = ExtResource( 7 )
+
+[node name="Camera" type="Camera" parent="CameraRig"]
 transform = Transform( 1, 0, 0, 0, 0.809909, 0.586556, 0, -0.586556, 0.809909, 0, 5, 10 )
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="ActionMenu" parent="UI" instance=ExtResource( 8 )]
+margin_left = -160.0
+margin_top = 8.0
+margin_right = -8.0
+margin_bottom = 120.0
+
+[node name="UnitStatsPanel" parent="UI" instance=ExtResource( 9 )]
+margin_left = 8.0
+margin_top = 8.0
+margin_right = 200.0
+margin_bottom = 90.0
+
+[node name="TurnOrderBar" parent="UI" instance=ExtResource( 10 )]
+margin_left = -200.0
+margin_right = 200.0
+margin_bottom = 40.0
