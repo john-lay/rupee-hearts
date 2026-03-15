@@ -9,7 +9,37 @@ const MAX_STEP = 1
 onready var map_data = get_node("../MapData")
 onready var grid_map: GridMap = get_node("../GridMap")
 
-var _highlight_meshes := []  # Array of MeshInstance nodes currently in the scene
+var _highlight_meshes := []  # Array of {mi: MeshInstance, mat: ShaderMaterial, color: Color}
+var _pulse_time: float = 0.0
+var _outline_shader: Shader
+
+
+func _ready() -> void:
+	_outline_shader = Shader.new()
+	_outline_shader.code = """
+shader_type spatial;
+render_mode unshaded, cull_disabled;
+uniform vec4 fill_color : hint_color = vec4(1.0);
+uniform vec4 border_color : hint_color = vec4(1.0);
+uniform float border_width : hint_range(0.01, 0.49) = 0.07;
+
+void fragment() {
+	float bw = border_width;
+	bool is_border = UV.x <= bw || UV.x >= 1.0 - bw || UV.y <= bw || UV.y >= 1.0 - bw;
+	ALBEDO = is_border ? border_color.rgb : fill_color.rgb;
+}
+"""
+
+
+func _process(delta: float) -> void:
+	if _highlight_meshes.empty():
+		return
+	_pulse_time += delta
+	var t = (sin(_pulse_time * 2.0) + 1.0) * 0.5  # oscillates 0 → 1
+	for entry in _highlight_meshes:
+		if is_instance_valid(entry.mi):
+			var c: Color = entry.color
+			entry.mat.set_shader_param("border_color", c.linear_interpolate(c.lightened(0.5), t))
 
 
 # Returns an Array of Vector2(x, z) the unit can reach.
@@ -147,10 +177,12 @@ func show_attack_highlights(cells: Array) -> void:
 
 
 func clear_highlights() -> void:
-	for mi in _highlight_meshes:
-		if is_instance_valid(mi):
-			mi.queue_free()
+	for entry in _highlight_meshes:
+		if is_instance_valid(entry.mi):
+			entry.mi.queue_free()
 	_highlight_meshes.clear()
+	_pulse_time = 0.0
+
 
 
 func _add_highlight(cell: Vector2, color: Color) -> void:
@@ -164,12 +196,13 @@ func _add_highlight(cell: Vector2, color: Color) -> void:
 	plane.size = Vector2(cs.x * 0.9, cs.z * 0.9)
 	mi.mesh = plane
 
-	var mat := SpatialMaterial.new()
-	mat.albedo_color = color
-	mat.flags_unshaded = true
+	var mat := ShaderMaterial.new()
+	mat.shader = _outline_shader
+	mat.set_shader_param("fill_color", color)
+	mat.set_shader_param("border_color", color)
 	mi.material_override = mat
 
 	# Add to the scene first so global_transform is valid, then position it
 	get_parent().add_child(mi)
 	mi.global_transform.origin = world_pos + Vector3(0, 0.05, 0)
-	_highlight_meshes.append(mi)
+	_highlight_meshes.append({mi = mi, mat = mat, color = color})

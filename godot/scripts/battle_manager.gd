@@ -25,6 +25,17 @@ var active_unit = null   # the unit currently taking their turn
 var _reachable_cells := []
 var _attack_targets := []
 var _active_indicator: MeshInstance
+var _indicator_pulse_time: float = 0.0
+const _INDICATOR_COLOR = Color(1.0, 0.85, 0.0)
+
+
+func _process(delta: float) -> void:
+	if _active_indicator and _active_indicator.visible:
+		_indicator_pulse_time += delta
+		var t = (sin(_indicator_pulse_time * 2.0) + 1.0) * 0.5
+		_active_indicator.material_override.set_shader_param(
+			"border_color", _INDICATOR_COLOR.linear_interpolate(_INDICATOR_COLOR.lightened(0.5), t)
+		)
 
 # Spawn positions from the prototype map layout
 const PLAYER_STARTS = [Vector2(1, 4), Vector2(4, 4)]
@@ -51,9 +62,10 @@ func _create_active_indicator() -> void:
 	var cs = $"../GridMap".cell_size
 	plane.size = Vector2(cs.x * 0.85, cs.z * 0.85)
 	_active_indicator.mesh = plane
-	var mat := SpatialMaterial.new()
-	mat.albedo_color = Color(1.0, 0.85, 0.0)
-	mat.flags_unshaded = true
+	var mat := ShaderMaterial.new()
+	mat.shader = $"../Movement"._outline_shader
+	mat.set_shader_param("fill_color", _INDICATOR_COLOR)
+	mat.set_shader_param("border_color", _INDICATOR_COLOR)
 	_active_indicator.material_override = mat
 	get_parent().add_child(_active_indicator)
 
@@ -65,6 +77,7 @@ func _update_active_indicator() -> void:
 	var pos = map_data.cell_to_world(active_unit.grid_x, active_unit.grid_z)
 	_active_indicator.translation = pos + Vector3(0, 0.05, 0)
 	_active_indicator.visible = true
+	_indicator_pulse_time = 0.0
 
 
 func _start_battle() -> void:
