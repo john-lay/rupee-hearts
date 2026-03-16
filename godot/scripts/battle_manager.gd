@@ -84,7 +84,31 @@ func _update_active_indicator() -> void:
 
 func _start_battle() -> void:
 	_create_active_indicator()
+	_create_debug_checkbox()
 	_change_state(State.TICK_CT)
+
+
+func _create_debug_checkbox() -> void:
+	var hbox := HBoxContainer.new()
+	hbox.anchor_top    = 1.0
+	hbox.anchor_bottom = 1.0
+	hbox.anchor_left   = 0.0
+	hbox.anchor_right  = 0.0
+	hbox.margin_left   = 8.0
+	hbox.margin_top    = -30.0
+	hbox.margin_bottom = -6.0
+	hbox.margin_right  = 180.0
+
+	var chk := CheckBox.new()
+	chk.text = "Debug Grid"
+	chk.connect("toggled", self, "_on_debug_grid_toggled")
+	hbox.add_child(chk)
+
+	get_node("../UI").add_child(hbox)
+
+
+func _on_debug_grid_toggled(on: bool) -> void:
+	_movement.toggle_debug_grid(on)
 
 
 # --- State machine ---

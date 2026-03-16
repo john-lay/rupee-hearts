@@ -10,6 +10,7 @@ onready var map_data = get_node("../MapData")
 onready var grid_map: GridMap = get_node("../GridMap")
 
 var _highlight_meshes := []  # Array of {mi: MeshInstance, mat: ShaderMaterial, color: Color}
+var _debug_meshes     := []  # same structure, shown independently of gameplay highlights
 var _pulse_time: float = 0.0
 var _outline_shader: Shader
 
@@ -32,11 +33,11 @@ void fragment() {
 
 
 func _process(delta: float) -> void:
-	if _highlight_meshes.empty():
+	if _highlight_meshes.empty() and _debug_meshes.empty():
 		return
 	_pulse_time += delta
 	var t = (sin(_pulse_time * 2.0) + 1.0) * 0.5  # oscillates 0 → 1
-	for entry in _highlight_meshes:
+	for entry in _highlight_meshes + _debug_meshes:
 		if is_instance_valid(entry.mi):
 			var c: Color = entry.color
 			entry.mat.set_shader_param("border_color", c.linear_interpolate(c.lightened(0.5), t))
@@ -185,7 +186,24 @@ func clear_highlights() -> void:
 
 
 
+func toggle_debug_grid(on: bool) -> void:
+	if on:
+		var purple := Color(0.55, 0.1, 0.85)
+		for z in map_data.MAP_DEPTH:
+			for x in map_data.MAP_WIDTH:
+				_add_highlight_to(Vector2(x, z), purple, _debug_meshes, 0.03)
+	else:
+		for entry in _debug_meshes:
+			if is_instance_valid(entry.mi):
+				entry.mi.queue_free()
+		_debug_meshes.clear()
+
+
 func _add_highlight(cell: Vector2, color: Color) -> void:
+	_add_highlight_to(cell, color, _highlight_meshes, 0.05)
+
+
+func _add_highlight_to(cell: Vector2, color: Color, target: Array, y_offset: float) -> void:
 	var x = int(cell.x)
 	var z = int(cell.y)
 	var world_pos = map_data.cell_to_world(x, z)
@@ -202,7 +220,6 @@ func _add_highlight(cell: Vector2, color: Color) -> void:
 	mat.set_shader_param("border_color", color)
 	mi.material_override = mat
 
-	# Add to the scene first so global_transform is valid, then position it
 	get_parent().add_child(mi)
-	mi.global_transform.origin = world_pos + Vector3(0, 0.05, 0)
-	_highlight_meshes.append({mi = mi, mat = mat, color = color})
+	mi.global_transform.origin = world_pos + Vector3(0, y_offset, 0)
+	target.append({mi = mi, mat = mat, color = color})
