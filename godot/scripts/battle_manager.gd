@@ -19,6 +19,7 @@ onready var turn_manager = $"../TurnManager"
 onready var units_node = $"../Units"
 onready var _movement = $"../Movement"
 onready var _camera: Camera = $"../CameraRig/Camera"
+onready var _turn_order_bar = $"../UI/TurnOrderBar"
 
 var state: int = State.INIT
 var active_unit = null   # the unit currently taking their turn
@@ -51,6 +52,7 @@ func _ready() -> void:
 	_spawn_units()
 	turn_manager.connect("turn_ready", self, "_on_turn_ready")
 	get_node("../UI/ActionMenu").setup(self)
+	_turn_order_bar.setup(turn_manager)
 	# Defer so all sibling nodes (AIController, Movement) finish their _ready()
 	# before the CT loop can fire an enemy turn.
 	call_deferred("_start_battle")
@@ -114,6 +116,7 @@ func _on_turn_ready(unit) -> void:
 	active_unit = unit
 	active_unit.start_turn()
 	_update_active_indicator()
+	_turn_order_bar.refresh(active_unit)
 	if active_unit.team == active_unit.Team.PLAYER:
 		_change_state(State.SELECT_ACTION)
 	else:
@@ -222,6 +225,7 @@ func _resolve_combat(attacker, defender) -> void:
 
 	_spawn_damage_number(damage, defender)
 	defender.take_damage(damage)
+	_turn_order_bar.refresh(active_unit)
 	if not defender.is_alive():
 		_remove_unit(defender)
 		_check_battle_over()

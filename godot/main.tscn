@@ -48,6 +48,3 @@ margin_right = -8.0
 margin_bottom = 120.0
 
 [node name="TurnOrderBar" parent="UI" instance=ExtResource( 9 )]
-margin_left = -200.0
-margin_right = 200.0
-margin_bottom = 40.0

@@ -2,11 +2,14 @@
 
 [ext_resource path="res://scripts/turn_order_bar.gd" type="Script" id=1]
 
-[node name="TurnOrderBar" type="HBoxContainer"]
-anchor_left = 0.5
-anchor_right = 0.5
-margin_left = -200
-margin_right = 200
-margin_bottom = 40
-separation = 16
+[node name="TurnOrderBar" type="VBoxContainer"]
+anchor_left = 0.0
+anchor_right = 0.0
+anchor_top = 0.0
+anchor_bottom = 0.0
+margin_left = 8.0
+margin_top = 8.0
+margin_right = 168.0
+margin_bottom = 400.0
+add_constant_override/separation = 4
 script = ExtResource( 1 )
