@@ -10,13 +10,13 @@ export var team: int = Team.PLAYER
 export var max_hp: int = 20
 export var attack: int = 8
 export var defense: int = 4
-export var speed: int = 10       # CT gained per tick
-export var move_range: int = 3   # max cells moveable per turn
-export var attack_range: int = 1 # max cell distance for a basic attack
+export var speed: int = 10
+export var move_range: int = 3
+export var attack_range: int = 1
 
 # --- Runtime state ---
 var hp: int
-var ct: int = 0        # charge time (0-99 at start, resets to 0 after acting)
+var ct: int = 0
 var grid_x: int = 0
 var grid_z: int = 0
 var has_moved: bool = false
@@ -24,9 +24,98 @@ var has_acted: bool = false
 
 signal died(unit)
 
+# --- Sprite sheet constants ---
+const _SHEET_PATH = "res://assets/sprites/soldier.png"
+const _FRAME_W  = 16   # pixels wide per frame (2 tiles)
+const _FRAME_H  = 32   # pixels tall per frame (4 tiles)
+const _FRAME_Y  = 8    # y offset within macro cell (skip 1 empty tile row)
+const _PIXEL_SIZE = 0.06
+const _ANIM_FPS = 5.0
+
+# SW walk: left foot, feet together, right foot, feet together
+const _SW = [32, 56, 80, 56]
+# NW walk: right foot, feet together, left foot, feet together
+const _NW = [128, 152, 176, 152]
+
+const _CELL_ALLIED = Vector2(0,   0)
+const _CELL_ENEMY  = Vector2(344, 0)
+
+# --- Node references ---
+var _sprite: Sprite3D
 var _hp_bar_fill: MeshInstance
-var _name_label: Label = null
+var _name_label: Label  = null
 var _camera_ref: Camera = null
+
+var _anim_time: float = 0.0
+
+
+func _ready() -> void:
+	hp = max_hp
+	_create_sprite()
+	_create_hp_bar()
+
+
+func _create_sprite() -> void:
+	_sprite = Sprite3D.new()
+	var img := Image.new()
+	img.load(_SHEET_PATH)
+	var tex := ImageTexture.new()
+	tex.create_from_image(img, 0)  # flags=0: nearest-neighbour, no mipmaps
+	_sprite.texture = tex
+	_sprite.pixel_size = _PIXEL_SIZE
+	_sprite.billboard  = 1  # SpatialMaterial.BILLBOARD_ENABLED
+	_sprite.region_enabled = true
+	# Lift so base sits at ground level; nudge -X/+Z to correct isometric billboard offset
+	_sprite.translation = Vector3(-0.15, _FRAME_H * _PIXEL_SIZE * 0.5, 0.3)
+	add_child(_sprite)
+	_set_sprite_frame(0, false)
+
+
+func _set_sprite_frame(frame_idx: int, flip: bool) -> void:
+	var cell = _CELL_ALLIED if team == Team.PLAYER else _CELL_ENEMY
+	_sprite.flip_h = flip
+	_sprite.region_rect = Rect2(
+		cell.x + _get_dir_frames()[frame_idx],
+		cell.y + _FRAME_Y,
+		_FRAME_W, _FRAME_H
+	)
+
+
+func _get_dir_frames() -> Array:
+	if not _camera_ref:
+		return _SW
+	var yaw = fmod(_camera_ref.get_parent().rotation_degrees.y, 360.0)
+	if yaw < 0.0:
+		yaw += 360.0
+	if yaw < 45.0 or yaw >= 315.0:
+		return _SW
+	elif yaw < 135.0:
+		return _NW
+	elif yaw < 225.0:
+		return _SW
+	else:
+		return _NW
+
+
+func _process(delta: float) -> void:
+	# Determine camera yaw for direction + flip
+	var yaw = 0.0
+	if _camera_ref:
+		yaw = fmod(_camera_ref.get_parent().rotation_degrees.y, 360.0)
+		if yaw < 0.0:
+			yaw += 360.0
+	var flip = (yaw >= 135.0 and yaw < 315.0)
+
+	# Advance walk animation
+	_anim_time += delta
+	var frame_idx = int(_anim_time * _ANIM_FPS) % 4
+	_set_sprite_frame(frame_idx, flip)
+
+	# Update floating name label
+	if _name_label and _camera_ref and is_instance_valid(_camera_ref):
+		var world_pos = global_transform.origin + Vector3(0, 2.4, 0)
+		var screen_pos = _camera_ref.unproject_position(world_pos)
+		_name_label.rect_position = screen_pos - Vector2(_name_label.rect_min_size.x * 0.5, 0)
 
 
 func setup_label(camera: Camera, ui_node: Node) -> void:
@@ -46,28 +135,9 @@ func cleanup_label() -> void:
 	_name_label = null
 
 
-func _process(_delta: float) -> void:
-	if _name_label and _camera_ref and is_instance_valid(_camera_ref):
-		var world_pos = global_transform.origin + Vector3(0, 2.0, 0)
-		var screen_pos = _camera_ref.unproject_position(world_pos)
-		_name_label.rect_position = screen_pos - Vector2(_name_label.rect_min_size.x * 0.5, 0)
-
-
-func _ready() -> void:
-	hp = max_hp
-	_apply_team_color()
-	_create_hp_bar()
-
-
-func _apply_team_color() -> void:
-	var mat := SpatialMaterial.new()
-	mat.albedo_color = Color(0.2, 0.4, 1.0) if team == Team.PLAYER else Color(0.9, 0.2, 0.2)
-	$Mesh.set_surface_material(0, mat)
-
-
 func _create_hp_bar() -> void:
 	var root := Spatial.new()
-	root.translation = Vector3(0, 1.6, 0)
+	root.translation = Vector3(0, 2.1, 0)
 	root.rotation_degrees.x = -36
 	add_child(root)
 
@@ -98,7 +168,6 @@ func _update_hp_bar() -> void:
 		return
 	var ratio := float(hp) / float(max_hp)
 	_hp_bar_fill.scale.x = max(0.01, ratio)
-	# Shift left so the bar drains from the right
 	_hp_bar_fill.translation.x = -0.4 * (1.0 - ratio)
 
 
@@ -107,7 +176,7 @@ func is_alive() -> bool:
 
 
 func take_damage(amount: int) -> void:
-	hp = max(0, hp - amount)
+	hp = int(max(0, hp - amount))
 	_update_hp_bar()
 	if hp == 0:
 		emit_signal("died", self)
