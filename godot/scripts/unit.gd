@@ -26,11 +26,11 @@ signal died(unit)
 
 # --- Sprite sheet constants ---
 const _SHEET_PATH = "res://assets/sprites/soldier.png"
-const _FRAME_W  = 16   # pixels wide per frame (2 tiles)
-const _FRAME_H  = 40   # pixels tall per frame (5 tiles — includes top row the head extends into)
-const _FRAME_Y  = 0    # start from top of macro cell
+const _FRAME_W    = 16
+const _FRAME_H    = 40
+const _FRAME_Y    = 0
 const _PIXEL_SIZE = 0.06
-const _ANIM_FPS = 5.0
+const _ANIM_FPS   = 5.0
 
 # SW walk: left foot, feet together, right foot, feet together
 const _SW = [32, 56, 80, 56]
@@ -60,20 +60,22 @@ func _create_sprite() -> void:
 	var img := Image.new()
 	img.load(_SHEET_PATH)
 	var tex := ImageTexture.new()
-	tex.create_from_image(img, 0)  # flags=0: nearest-neighbour, no mipmaps
-	_sprite.texture = tex
-	_sprite.pixel_size = _PIXEL_SIZE
-	_sprite.billboard  = 1  # SpatialMaterial.BILLBOARD_ENABLED
+	tex.create_from_image(img, 0)  # nearest-neighbour, no mipmaps
+	_sprite.texture        = tex
+	_sprite.pixel_size     = _PIXEL_SIZE
+	_sprite.billboard = 1  # BILLBOARD_ENABLED: fully faces camera, sprite looks correct
+	_sprite.alpha_cut = 1  # ALPHA_CUT_DISCARD: pixel art transparency via discard, GLES2-safe
 	_sprite.region_enabled = true
-	# Lift so base sits at ground level; nudge -X/+Z to correct isometric billboard offset
-	_sprite.translation = Vector3(-0.15, _FRAME_H * _PIXEL_SIZE * 0.5, 0.3)
+	_sprite.translation.y  = _FRAME_H * _PIXEL_SIZE * 0.5
 	add_child(_sprite)
 	_set_sprite_frame(0, false)
 
 
 func _set_sprite_frame(frame_idx: int, flip: bool) -> void:
+	if not _sprite:
+		return
 	var cell = _CELL_ALLIED if team == Team.PLAYER else _CELL_ENEMY
-	_sprite.flip_h = flip
+	_sprite.flip_h      = flip
 	_sprite.region_rect = Rect2(
 		cell.x + _get_dir_frames()[frame_idx],
 		cell.y + _FRAME_Y,
@@ -98,20 +100,17 @@ func _get_dir_frames() -> Array:
 
 
 func _process(delta: float) -> void:
-	# Determine camera yaw for direction + flip
 	var yaw = 0.0
 	if _camera_ref:
 		yaw = fmod(_camera_ref.get_parent().rotation_degrees.y, 360.0)
 		if yaw < 0.0:
 			yaw += 360.0
+
 	var flip = (yaw >= 135.0 and yaw < 315.0)
-
-	# Advance walk animation
 	_anim_time += delta
-	var frame_idx = int(_anim_time * _ANIM_FPS) % 4
-	_set_sprite_frame(frame_idx, flip)
+	_set_sprite_frame(int(_anim_time * _ANIM_FPS) % 4, flip)
 
-	# Update floating name label
+	# Name label
 	if _name_label and _camera_ref and is_instance_valid(_camera_ref):
 		var world_pos = global_transform.origin + Vector3(0, 2.4, 0)
 		var screen_pos = _camera_ref.unproject_position(world_pos)
