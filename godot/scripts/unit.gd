@@ -27,8 +27,8 @@ signal died(unit)
 # --- Sprite sheet constants ---
 const _SHEET_PATH = "res://assets/sprites/soldier.png"
 const _FRAME_W  = 16   # pixels wide per frame (2 tiles)
-const _FRAME_H  = 32   # pixels tall per frame (4 tiles)
-const _FRAME_Y  = 8    # y offset within macro cell (skip 1 empty tile row)
+const _FRAME_H  = 40   # pixels tall per frame (5 tiles — includes top row the head extends into)
+const _FRAME_Y  = 0    # start from top of macro cell
 const _PIXEL_SIZE = 0.06
 const _ANIM_FPS = 5.0
 
