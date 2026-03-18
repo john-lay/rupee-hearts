@@ -1,17 +1,21 @@
 extends Spatial
 
-# Rotation
-const ROTATE_STEP  = 45.0   # degrees per key press
-const ROTATE_SPEED = 10.0   # lerp speed toward target
+# Rotation — 90° snaps give four cardinal isometric positions (SW, NW, NE, SE)
+const ROTATE_STEP  = 90.0
+const ROTATE_SPEED = 10.0
 
-# Zoom levels (arm length): close → far
-const ZOOM_LEVELS = [9.0, 10.0, 15.0, 22.0]
+# Orthographic zoom levels (camera size = vertical world-units visible)
+const ZOOM_LEVELS = [5.0, 7.0, 10.0, 14.0]
+
+# True isometric elevation: arctan(1/sqrt(2)) ≈ 35.264° — all axes equally foreshortened
+const ELEVATION_DEG = 35.264
+const CAMERA_ARM    = 20.0  # arm length; only affects near/far depth, not zoom
 
 onready var _camera: Camera = $Camera
 
-var _yaw: float = 0.0         # current Y rotation in degrees
-var _target_yaw: float = 0.0  # snapped target we are smoothly rotating toward
-var _zoom_index: int = 1      # start at second level (10.0)
+var _yaw: float = 45.0         # current Y rotation in degrees
+var _target_yaw: float = 45.0  # snapped target we are smoothly rotating toward
+var _zoom_index: int = 1      # start at second level (7.0)
 
 
 func _ready() -> void:
@@ -38,8 +42,16 @@ func _input(event: InputEvent) -> void:
 				_apply_camera()
 
 
-# Reposition the Camera child along its arm using the current zoom level
+# Position the Camera child at the isometric elevation angle and set orthographic zoom.
 func _apply_camera() -> void:
-	if _camera:
-		var z = ZOOM_LEVELS[_zoom_index]
-		_camera.transform.origin = Vector3(0, z * 0.5, z)
+	if not _camera:
+		return
+	var elev_rad := deg2rad(ELEVATION_DEG)
+	_camera.projection    = Camera.PROJECTION_ORTHOGONAL
+	_camera.size          = ZOOM_LEVELS[_zoom_index]
+	_camera.transform.origin = Vector3(
+		0.0,
+		CAMERA_ARM * sin(elev_rad),
+		CAMERA_ARM * cos(elev_rad)
+	)
+	_camera.rotation_degrees = Vector3(-ELEVATION_DEG, 0.0, 0.0)

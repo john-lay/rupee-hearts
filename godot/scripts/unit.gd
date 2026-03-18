@@ -42,6 +42,7 @@ const _CELL_ENEMY  = Vector2(344, 0)
 
 # --- Node references ---
 var _sprite: Sprite3D
+var _hp_bar_root: Spatial
 var _hp_bar_fill: MeshInstance
 var _name_label: Label  = null
 var _camera_ref: Camera = null
@@ -66,7 +67,7 @@ func _create_sprite() -> void:
 	_sprite.billboard = 1  # BILLBOARD_ENABLED: fully faces camera, sprite looks correct
 	_sprite.alpha_cut = 1  # ALPHA_CUT_DISCARD: pixel art transparency via discard, GLES2-safe
 	_sprite.region_enabled = true
-	_sprite.translation.y  = _FRAME_H * _PIXEL_SIZE * 0.5
+	_sprite.translation.y  = _FRAME_H * _PIXEL_SIZE * 0.35
 	add_child(_sprite)
 	_set_sprite_frame(0, false)
 
@@ -110,6 +111,11 @@ func _process(delta: float) -> void:
 	_anim_time += delta
 	_set_sprite_frame(int(_anim_time * _ANIM_FPS) % 4, flip)
 
+	# HP bar billboard — match camera orientation each frame (yaw + elevation, no roll)
+	if _hp_bar_root and _camera_ref and is_instance_valid(_camera_ref):
+		var cam_yaw = _camera_ref.get_parent().rotation_degrees.y
+		_hp_bar_root.rotation_degrees = Vector3(-35.264, cam_yaw, 0.0)
+
 	# Name label
 	if _name_label and _camera_ref and is_instance_valid(_camera_ref):
 		var world_pos = global_transform.origin + Vector3(0, 2.4, 0)
@@ -136,8 +142,8 @@ func cleanup_label() -> void:
 
 func _create_hp_bar() -> void:
 	var root := Spatial.new()
-	root.translation = Vector3(0, 2.1, 0)
-	root.rotation_degrees.x = -36
+	root.translation = Vector3(0, 2.0, 0)
+	_hp_bar_root = root
 	add_child(root)
 
 	var bg := MeshInstance.new()

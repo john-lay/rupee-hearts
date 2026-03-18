@@ -35,7 +35,7 @@ Main (Spatial)
 | `movement.gd` | BFS flood fill for reachable cells, A* for pathing. Tile highlights use an inline GLSL shader (fill + pulsing border). |
 | `unit.gd` | Stats, HP bar (3D MeshInstance), name label (2D Label projected via `unproject_position`), CT. |
 | `turn_manager.gd` | Ticks all units' CT by their speed each frame until one hits 100, then emits `turn_ready`. |
-| `camera_controller.gd` | A/D = 45° discrete rotation (lerp-smoothed). W/S = 4 zoom levels. |
+| `camera_controller.gd` | A/D = 90° discrete rotation (lerp-smoothed), 4 isometric positions. W/S = 4 orthographic zoom levels. Orthographic projection at 35.264° elevation. |
 
 ## Critical Godot 3 / GLES2 Constraints
 
