@@ -76,6 +76,12 @@ func clear_unit_at(x: int, z: int) -> void:
 		_occupancy[z][x] = null
 
 
+func clear_all_units() -> void:
+	for z in MAP_DEPTH:
+		for x in MAP_WIDTH:
+			_occupancy[z][x] = null
+
+
 # World position of the top-center of the tile at grid cell (x, z).
 # This is where a unit standing on that cell should be positioned.
 func cell_to_world(x: int, z: int) -> Vector3:

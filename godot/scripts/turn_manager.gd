@@ -72,3 +72,7 @@ func preview_order(count: int) -> Array:
 
 func remove_unit(unit) -> void:
 	_units.erase(unit)
+
+
+func restore_units(unit_list: Array) -> void:
+	_units = unit_list.duplicate()

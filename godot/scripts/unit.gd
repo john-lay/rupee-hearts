@@ -21,8 +21,7 @@ var grid_x: int = 0
 var grid_z: int = 0
 var has_moved: bool = false
 var has_acted: bool = false
-
-signal died(unit)
+var alive: bool = true
 
 # --- Sprite sheet constants ---
 const _SHEET_PATH = "res://assets/sprites/soldier.png"
@@ -177,14 +176,43 @@ func _update_hp_bar() -> void:
 
 
 func is_alive() -> bool:
-	return hp > 0
+	return hp > 0 and alive
 
 
 func take_damage(amount: int) -> void:
 	hp = int(max(0, hp - amount))
 	_update_hp_bar()
-	if hp == 0:
-		emit_signal("died", self)
+
+
+func set_alive(val: bool) -> void:
+	alive = val
+	visible = val
+	if _name_label and is_instance_valid(_name_label):
+		_name_label.visible = val
+
+
+func get_snapshot() -> Dictionary:
+	return {
+		"node":      self,
+		"grid_x":    grid_x,
+		"grid_z":    grid_z,
+		"hp":        hp,
+		"ct":        ct,
+		"has_moved": has_moved,
+		"has_acted": has_acted,
+		"alive":     alive,
+	}
+
+
+func restore_from_snapshot(entry: Dictionary, map_data) -> void:
+	hp        = entry.hp
+	ct        = entry.ct
+	has_moved = entry.has_moved
+	has_acted = entry.has_acted
+	set_alive(entry.alive)
+	if entry.alive:
+		place_on_grid(entry.grid_x, entry.grid_z, map_data)
+	_update_hp_bar()
 
 
 func place_on_grid(x: int, z: int, map_data) -> void:
