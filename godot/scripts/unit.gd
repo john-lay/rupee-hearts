@@ -14,11 +14,18 @@ export var speed: int = 10
 export var move_range: int = 3
 export var attack_range: int = 1
 
+# --- Direction ---
+const DIR_S = 0  # south  (+Z)
+const DIR_W = 1  # west   (-X)
+const DIR_N = 2  # north  (-Z)
+const DIR_E = 3  # east   (+X)
+
 # --- Runtime state ---
 var hp: int
 var ct: int = 0
 var grid_x: int = 0
 var grid_z: int = 0
+var facing: int = DIR_S
 var has_moved: bool = false
 var has_acted: bool = false
 var alive: bool = true
@@ -68,47 +75,49 @@ func _create_sprite() -> void:
 	_sprite.region_enabled = true
 	_sprite.translation.y  = _FRAME_H * _PIXEL_SIZE * 0.35
 	add_child(_sprite)
-	_set_sprite_frame(0, false)
+	_update_sprite()
 
 
-func _set_sprite_frame(frame_idx: int, flip: bool) -> void:
+# [cam_index][facing] → effective screen direction
+# effective: 0=NW, 1=SE, 2=NE, 3=SW
+# Camera positions: cam 0=SE(yaw≈45°), 1=NE(135°), 2=NW(225°), 3=SW(315°)
+# Derived from orthographic projection of each world cardinal onto screen axes.
+const _SPRITE_LOOKUP = [
+	[3, 0, 2, 1],  # cam SE: S→SW, W→NW, N→NE, E→SE
+	[0, 2, 1, 3],  # cam NE: S→NW, W→NE, N→SE, E→SW
+	[2, 1, 3, 0],  # cam NW: S→NE, W→SE, N→SW, E→NW
+	[1, 3, 0, 2],  # cam SW: S→SE, W→SW, N→NW, E→NE
+]
+
+func _get_sprite_params() -> Array:
+	var cam_yaw := 0.0
+	if _camera_ref:
+		cam_yaw = fmod(_camera_ref.get_parent().rotation_degrees.y, 360.0)
+		if cam_yaw < 0.0:
+			cam_yaw += 360.0
+	var cam_index := int(cam_yaw / 90.0) % 4
+	match _SPRITE_LOOKUP[cam_index][facing]:
+		0: return [_NW, false]  # NW on screen
+		1: return [_SW, true]   # SE on screen
+		2: return [_NW, true]   # NE on screen
+		_: return [_SW, false]  # SW on screen
+
+
+func _update_sprite() -> void:
 	if not _sprite:
 		return
-	var cell = _CELL_ALLIED if team == Team.PLAYER else _CELL_ENEMY
+	var params  = _get_sprite_params()
+	var offsets = params[0]
+	var flip    = params[1]
+	var frame   = int(_anim_time * _ANIM_FPS) % 4
+	var cell    = _CELL_ALLIED if team == Team.PLAYER else _CELL_ENEMY
 	_sprite.flip_h      = flip
-	_sprite.region_rect = Rect2(
-		cell.x + _get_dir_frames()[frame_idx],
-		cell.y + _FRAME_Y,
-		_FRAME_W, _FRAME_H
-	)
-
-
-func _get_dir_frames() -> Array:
-	if not _camera_ref:
-		return _SW
-	var yaw = fmod(_camera_ref.get_parent().rotation_degrees.y, 360.0)
-	if yaw < 0.0:
-		yaw += 360.0
-	if yaw < 45.0 or yaw >= 315.0:
-		return _SW
-	elif yaw < 135.0:
-		return _NW
-	elif yaw < 225.0:
-		return _SW
-	else:
-		return _NW
+	_sprite.region_rect = Rect2(cell.x + offsets[frame], cell.y + _FRAME_Y, _FRAME_W, _FRAME_H)
 
 
 func _process(delta: float) -> void:
-	var yaw = 0.0
-	if _camera_ref:
-		yaw = fmod(_camera_ref.get_parent().rotation_degrees.y, 360.0)
-		if yaw < 0.0:
-			yaw += 360.0
-
-	var flip = (yaw >= 135.0 and yaw < 315.0)
 	_anim_time += delta
-	_set_sprite_frame(int(_anim_time * _ANIM_FPS) % 4, flip)
+	_update_sprite()
 
 	# HP bar billboard — match camera orientation each frame (yaw + elevation, no roll)
 	if _hp_bar_root and _camera_ref and is_instance_valid(_camera_ref):
@@ -198,6 +207,7 @@ func get_snapshot() -> Dictionary:
 		"grid_z":    grid_z,
 		"hp":        hp,
 		"ct":        ct,
+		"facing":    facing,
 		"has_moved": has_moved,
 		"has_acted": has_acted,
 		"alive":     alive,
@@ -207,6 +217,7 @@ func get_snapshot() -> Dictionary:
 func restore_from_snapshot(entry: Dictionary, map_data) -> void:
 	hp        = entry.hp
 	ct        = entry.ct
+	facing    = entry.get("facing", DIR_S)
 	has_moved = entry.has_moved
 	has_acted = entry.has_acted
 	set_alive(entry.alive)

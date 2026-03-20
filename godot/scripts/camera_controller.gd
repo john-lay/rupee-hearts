@@ -5,7 +5,7 @@ const ROTATE_STEP  = 90.0
 const ROTATE_SPEED = 10.0
 
 # Orthographic zoom levels (camera size = vertical world-units visible)
-const ZOOM_LEVELS = [5.0, 7.0, 10.0, 14.0]
+const ZOOM_LEVELS = [7.0, 10.0, 14.0]
 
 # True isometric elevation: arctan(1/sqrt(2)) ≈ 35.264° — all axes equally foreshortened
 const ELEVATION_DEG = 35.264
@@ -15,7 +15,7 @@ onready var _camera: Camera = $Camera
 
 var _yaw: float = 45.0         # current Y rotation in degrees
 var _target_yaw: float = 45.0  # snapped target we are smoothly rotating toward
-var _zoom_index: int = 1      # start at second level (7.0)
+var _zoom_index: int = 1      # start at second level (10.0)
 
 
 func _ready() -> void:

@@ -19,3 +19,6 @@ text = "Attack"
 
 [node name="BtnWait" type="Button" parent="."]
 text = "Wait"
+
+[node name="BtnCancel" type="Button" parent="."]
+text = "Cancel"

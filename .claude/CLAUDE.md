@@ -22,7 +22,7 @@ Main (Spatial)
 ├── CameraRig        — camera_controller.gd: A/D rotate, W/S zoom
 │   └── Camera
 └── UI (CanvasLayer)
-    ├── ActionMenu   — Move / Attack / Wait buttons
+    ├── ActionMenu   — Move / Attack / Wait / Cancel buttons
     └── TurnOrderBar — CT preview bar
 ```
 
@@ -31,11 +31,11 @@ Main (Spatial)
 | Script | Role |
 |--------|------|
 | `map_data.gd` | `MAP_LAYOUT[z][x]` defines heights. Provides `cell_to_world()`, `is_walkable()`, `get_height()`, occupancy grid. |
-| `battle_manager.gd` | State machine: TICK_CT → SELECT_ACTION → SELECT_MOVE/ATTACK_TARGET → END_TURN → ENEMY_THINK. Spawns units, handles mouse picking, resolves combat. |
+| `battle_manager.gd` | State machine: TICK_CT → SELECT_ACTION → SELECT_MOVE/ATTACK_TARGET → SELECT_FACING → END_TURN → ENEMY_THINK. Also CHARIOT_SELECT for timeline rewind. Spawns units, handles mouse picking, resolves combat with directional damage multipliers. |
 | `movement.gd` | BFS flood fill for reachable cells, A* for pathing. Tile highlights use an inline GLSL shader (fill + pulsing border). |
 | `unit.gd` | Stats, HP bar (3D MeshInstance), name label (2D Label projected via `unproject_position`), CT. |
 | `turn_manager.gd` | Ticks all units' CT by their speed each frame until one hits 100, then emits `turn_ready`. |
-| `camera_controller.gd` | A/D = 90° discrete rotation (lerp-smoothed), 4 isometric positions. W/S = 4 orthographic zoom levels. Orthographic projection at 35.264° elevation. |
+| `camera_controller.gd` | A/D = 90° discrete rotation (lerp-smoothed), 4 isometric positions. W/S = 3 orthographic zoom levels (7/10/14), default mid. Orthographic projection at 35.264° elevation. |
 
 ## Critical Godot 3 / GLES2 Constraints
 

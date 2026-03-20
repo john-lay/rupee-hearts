@@ -45,18 +45,22 @@ Main (Spatial)
 
 ```
 INIT
-  └─► TICK_CT          ← advance all unit CTs by their speed
+  └─► TICK_CT              ← advance all unit CTs by their speed
         └─► (unit reaches CT 100)
-              ├── player unit → SELECT_UNIT
-              └── enemy unit  → ENEMY_THINK → RESOLVE → TICK_CT
+              ├── player unit → SELECT_ACTION
+              └── enemy unit  → ENEMY_THINK → RESOLVE_COMBAT → TICK_CT
 
-SELECT_UNIT            ← highlight active unit, wait for confirm
-  └─► SELECT_ACTION    ← show menu: Move / Attack / Wait
-        ├── Move  → SELECT_MOVE_TARGET  → MOVE_UNIT → SELECT_ACTION (no move again)
-        ├── Attack → SELECT_ATTACK_TARGET → RESOLVE_COMBAT
-        └── Wait  → END_TURN
+SELECT_ACTION              ← show menu: Move / Attack / Wait / Cancel
+        ├── Move   → SELECT_MOVE_TARGET  → MOVE_UNIT → SELECT_ACTION
+        ├── Attack → SELECT_ATTACK_TARGET → RESOLVE_COMBAT → SELECT_ACTION
+        ├── Wait   → SELECT_FACING → END_TURN
+        └── Cancel → restore snapshot → SELECT_ACTION
 
-END_TURN               ← reset unit CT to 0, back to TICK_CT
+SELECT_FACING              ← NW/NE/SW/SE chooser overlay; triggers only after Wait
+
+END_TURN                   ← reset unit CT to 0, back to TICK_CT
+
+CHARIOT_SELECT             ← branching timeline panel; rewind to any prior snapshot
 ```
 
 ## CT System Detail

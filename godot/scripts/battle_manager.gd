@@ -13,7 +13,26 @@ enum State {
 	END_TURN,
 	BATTLE_OVER,
 	CHARIOT_SELECT,
+	SELECT_FACING,
 }
+
+# Direction constants — must match unit.gd
+const DIR_S = 0
+const DIR_W = 1
+const DIR_N = 2
+const DIR_E = 3
+const _DIR_FORWARD = [Vector2(0, 1), Vector2(-1, 0), Vector2(0, -1), Vector2(1, 0)]
+
+# Diagonal button → world direction per camera position.
+# Button indices: 0=NW, 1=NE, 2=SW, 3=SE  (screen corners of the unit)
+# Derived from inverse of _SPRITE_LOOKUP: screen visual dir → world dir.
+# cam 0=SE(yaw≈45°), 1=NE(135°), 2=NW(225°), 3=SW(315°)
+const _CROSS_TO_WORLD = [
+	[1, 2, 0, 3],  # cam SE: NW→W, NE→N, SW→S, SE→E
+	[0, 1, 3, 2],  # cam NE: NW→S, NE→W, SW→E, SE→N
+	[3, 0, 2, 1],  # cam NW: NW→E, NE→S, SW→N, SE→W
+	[2, 3, 1, 0],  # cam SW: NW→N, NE→E, SW→W, SE→S
+]
 
 onready var map_data = $"../MapData"
 onready var turn_manager = $"../TurnManager"
@@ -36,6 +55,9 @@ var _next_branch_id: int = 0   # monotonic counter for new branches
 var _chariot_turn_number: int = 0
 var _chariot_node_id: int = 0  # unique int id per node — avoids hashing cyclic dicts
 var _chariot_panel: Control = null
+
+var _facing_chooser: Control = null
+var _facing_next_state: int = State.SELECT_ACTION
 
 
 func _process(delta: float) -> void:
@@ -135,7 +157,13 @@ func _change_state(new_state: int) -> void:
 			_movement.show_move_highlights(_reachable_cells)
 		State.SELECT_ATTACK_TARGET:
 			_attack_targets = _movement.get_attack_targets(active_unit)
+			if _attack_targets.empty():
+				_change_state(State.SELECT_ACTION)
+				return
 			_movement.show_attack_highlights(_attack_targets)
+		State.SELECT_FACING:
+			_movement.clear_highlights()
+			_open_facing_chooser()
 		State.END_TURN:
 			_movement.clear_highlights()
 			active_unit = null
@@ -173,7 +201,35 @@ func player_select_attack() -> void:
 
 func player_wait() -> void:
 	if state == State.SELECT_ACTION:
-		_change_state(State.END_TURN)
+		_start_facing_chooser(State.END_TURN)
+
+
+func has_attack_targets() -> bool:
+	if active_unit == null:
+		return false
+	return not _movement.get_attack_targets(active_unit).empty()
+
+
+func player_cancel_turn() -> void:
+	if state != State.SELECT_ACTION or _current_node == null:
+		return
+	# Restore all units to turn-start state (position, HP, has_moved, has_acted)
+	# without disturbing the turn order or CT values beyond what the snapshot holds.
+	var alive_units := []
+	for entry in _current_node.units:
+		entry.node.restore_from_snapshot(entry, map_data)
+		if entry.alive:
+			alive_units.append(entry.node)
+	map_data.clear_all_units()
+	for u in alive_units:
+		map_data.set_unit_at(u.grid_x, u.grid_z, u)
+	for u in alive_units:
+		if u.unit_name == _current_node.acting_unit_name:
+			active_unit = u
+			break
+	_movement.clear_highlights()
+	_update_active_indicator()
+	_change_state(State.SELECT_ACTION)
 
 
 # Called by movement system after the player picks a destination
@@ -258,10 +314,14 @@ func _move_unit(unit, to_x: int, to_z: int) -> void:
 
 
 func _resolve_combat(attacker, defender) -> void:
+	# Auto-turn attacker to face defender before calculating direction bonus
+	attacker.facing = _direction_toward(attacker, defender.grid_x, defender.grid_z)
+
 	var height_diff = map_data.get_height(attacker.grid_x, attacker.grid_z) \
 		- map_data.get_height(defender.grid_x, defender.grid_z)
 
-	var damage = max(1, attacker.attack - defender.defense)
+	var dir_mult := _get_attack_dir_mult(attacker, defender)
+	var damage = max(1, int(attacker.attack * dir_mult) - defender.defense)
 	if height_diff > 0:
 		damage = int(damage * 1.15)
 	elif height_diff < 0:
@@ -273,6 +333,80 @@ func _resolve_combat(attacker, defender) -> void:
 	if not defender.is_alive():
 		_remove_unit(defender)
 		_check_battle_over()
+
+
+# Returns the world direction (DIR_*) from from_unit toward (to_x, to_z).
+func _direction_toward(from_unit, to_x: int, to_z: int) -> int:
+	var dx = to_x - from_unit.grid_x
+	var dz = to_z - from_unit.grid_z
+	if abs(dz) > abs(dx):
+		return DIR_S if dz > 0 else DIR_N
+	else:
+		return DIR_E if dx > 0 else DIR_W
+
+
+# Damage multiplier based on attacker position relative to defender's facing.
+func _get_attack_dir_mult(attacker, defender) -> float:
+	var dx = attacker.grid_x - defender.grid_x
+	var dz = attacker.grid_z - defender.grid_z
+	var fwd: Vector2 = _DIR_FORWARD[defender.facing]
+	var dot   = dx * fwd.x + dz * fwd.y
+	var cross = abs(dx * fwd.y - dz * fwd.x)
+	if cross > abs(dot): return 1.25  # side
+	elif dot >= 0:        return 1.0   # front (ties favour defender)
+	else:                 return 1.5   # back
+
+
+# --- Facing chooser ---
+
+func _start_facing_chooser(next_state: int) -> void:
+	_facing_next_state = next_state
+	_change_state(State.SELECT_FACING)
+
+
+func _open_facing_chooser() -> void:
+	var ui := get_node("../UI")
+	var chooser := Control.new()
+	chooser.set_anchors_and_margins_preset(Control.PRESET_WIDE)
+	chooser.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_facing_chooser = chooser
+	ui.add_child(chooser)
+
+	var screen_pos := _camera.unproject_position(active_unit.global_transform.origin)
+	# 2x2 square layout at isometric corners around the unit:
+	#   [NW][NE]
+	#   [SW][SE]
+	# Button indices: 0=NW, 1=NE, 2=SW, 3=SE
+	var labels  = ["NW", "NE", "SW", "SE"]
+	var btn_sz  = Vector2(40, 30)
+	var hstep   = 24.0   # horizontal half-gap between button centres
+	var vstep   = 20.0   # vertical half-gap between button centres
+	var base    = Vector2(0, -55)  # shift group above unit
+	var offsets = [
+		base + Vector2(-hstep, -vstep),  # NW
+		base + Vector2( hstep, -vstep),  # NE
+		base + Vector2(-hstep,  vstep),  # SW
+		base + Vector2( hstep,  vstep),  # SE
+	]
+	for i in 4:
+		var btn := Button.new()
+		btn.text          = labels[i]
+		btn.rect_size     = btn_sz
+		btn.rect_position = screen_pos + offsets[i] - btn_sz * 0.5
+		btn.connect("pressed", self, "_on_facing_chosen", [i])
+		chooser.add_child(btn)
+
+
+func _on_facing_chosen(screen_dir: int) -> void:
+	var cam_yaw = fmod(_camera.get_parent().rotation_degrees.y, 360.0)
+	if cam_yaw < 0.0:
+		cam_yaw += 360.0
+	var cam_index = int(cam_yaw / 90.0) % 4
+	active_unit.facing = _CROSS_TO_WORLD[cam_index][screen_dir]
+	if is_instance_valid(_facing_chooser):
+		_facing_chooser.queue_free()
+	_facing_chooser = null
+	_change_state(_facing_next_state)
 
 
 func _spawn_damage_number(amount: int, unit) -> void:

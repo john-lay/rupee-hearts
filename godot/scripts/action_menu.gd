@@ -3,6 +3,7 @@ extends VBoxContainer
 onready var btn_move   = $BtnMove
 onready var btn_attack = $BtnAttack
 onready var btn_wait   = $BtnWait
+onready var btn_cancel = $BtnCancel
 
 var _battle_manager = null
 
@@ -12,6 +13,7 @@ func _ready() -> void:
 	btn_move.connect("pressed", self, "_on_move")
 	btn_attack.connect("pressed", self, "_on_attack")
 	btn_wait.connect("pressed", self, "_on_wait")
+	btn_cancel.connect("pressed", self, "_on_cancel")
 
 
 func setup(battle_manager) -> void:
@@ -26,7 +28,7 @@ func _on_state_changed(new_state: int) -> void:
 	if new_state == _SELECT_ACTION:
 		var unit = _battle_manager.active_unit
 		btn_move.disabled   = unit.has_moved
-		btn_attack.disabled = unit.has_acted
+		btn_attack.disabled = unit.has_acted or not _battle_manager.has_attack_targets()
 		show()
 	else:
 		hide()
@@ -35,3 +37,4 @@ func _on_state_changed(new_state: int) -> void:
 func _on_move()   -> void: _battle_manager.player_select_move()
 func _on_attack() -> void: _battle_manager.player_select_attack()
 func _on_wait()   -> void: _battle_manager.player_wait()
+func _on_cancel() -> void: _battle_manager.player_cancel_turn()
