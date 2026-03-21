@@ -4,6 +4,10 @@ extends Node
 
 onready var movement = get_node("../Movement")
 
+var _pending_unit = null
+var _pending_target = null
+var _pending_battle_manager = null
+
 
 func take_turn(unit, map_data, battle_manager) -> void:
 	var target = _nearest_player(unit, map_data, battle_manager)
@@ -17,17 +21,31 @@ func take_turn(unit, map_data, battle_manager) -> void:
 		battle_manager.end_enemy_turn()
 		return
 
-	# Move toward target
+	# Move toward target, then check attack in the callback
 	var reachable = movement.get_reachable_cells(unit)
 	var best_cell = _closest_cell_to(reachable, target)
 	if best_cell:
-		battle_manager.confirm_move(int(best_cell.x), int(best_cell.y))
-
-	# Attack after moving if now in range
-	if _can_attack(unit, target):
-		battle_manager.confirm_attack(target)
+		_pending_unit = unit
+		_pending_target = target
+		_pending_battle_manager = battle_manager
+		battle_manager.confirm_move(int(best_cell.x), int(best_cell.y), funcref(self, "_after_ai_move"))
+		return  # _after_ai_move handles end_enemy_turn
 
 	battle_manager.end_enemy_turn()
+
+
+func _after_ai_move() -> void:
+	var bm = _pending_battle_manager
+	var pu = _pending_unit
+	var pt = _pending_target
+	_pending_unit = null
+	_pending_target = null
+	_pending_battle_manager = null
+	if pu != null and pt != null and bm != null:
+		if _can_attack(pu, pt):
+			bm.confirm_attack(pt)
+	if bm != null:
+		bm.end_enemy_turn()
 
 
 func _nearest_player(unit, map_data, battle_manager):

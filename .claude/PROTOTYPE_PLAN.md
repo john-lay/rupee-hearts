@@ -36,9 +36,9 @@ Main (Spatial)
 | `battle_manager.gd` | Top-level state machine; coordinates all other systems |
 | `turn_manager.gd` | CT tick loop; determines whose turn it is |
 | `map_data.gd` | Grid queries: is cell walkable, who occupies it, cell height |
-| `unit.gd` | Stats (HP, ATK, DEF, SPD, move/attack range), CT value, grid position |
+| `unit.gd` | Stats (HP, ATK, DEF, SPD, move/attack range), CT value, grid position, facing direction, tile-by-tile walk animation (`walk_path()` / `move_finished` signal) |
 | `movement.gd` | BFS flood fill for reachable cells; A* pathfinding for movement |
-| `ai_controller.gd` | Greedy enemy logic: close on nearest player unit, attack if in range |
+| `ai_controller.gd` | Greedy enemy logic: close on nearest player unit, attack if in range; async — uses `_after_ai_move` callback after walk animation completes |
 | `camera_controller.gd` | Middle-mouse pan, Q/E rotate around map center, scroll zoom |
 
 ## Battle State Machine

@@ -30,6 +30,19 @@ var has_moved: bool = false
 var has_acted: bool = false
 var alive: bool = true
 
+# --- Walk animation ---
+signal move_finished
+
+const WALK_SPEED = 3.0  # tiles per second
+
+var _is_walking:      bool    = false
+var _walk_path:       Array   = []
+var _walk_from_cell:  Vector2 = Vector2()
+var _walk_from:       Vector3 = Vector3()
+var _walk_to:         Vector3 = Vector3()
+var _walk_t:          float   = 0.0
+var _map_data                 = null  # cached from place_on_grid
+
 # --- Sprite sheet constants ---
 const _SHEET_PATH = "res://assets/sprites/soldier.png"
 const _FRAME_W    = 16
@@ -117,6 +130,13 @@ func _update_sprite() -> void:
 
 func _process(delta: float) -> void:
 	_anim_time += delta
+
+	if _is_walking:
+		_walk_t = min(_walk_t + delta * WALK_SPEED, 1.0)
+		global_transform.origin = _walk_from.linear_interpolate(_walk_to, _walk_t)
+		if _walk_t >= 1.0:
+			_start_next_step()
+
 	_update_sprite()
 
 	# HP bar billboard — match camera orientation each frame (yaw + elevation, no roll)
@@ -227,9 +247,43 @@ func restore_from_snapshot(entry: Dictionary, map_data) -> void:
 
 
 func place_on_grid(x: int, z: int, map_data) -> void:
+	_map_data = map_data
+	_is_walking = false
+	_walk_path.clear()
 	grid_x = x
 	grid_z = z
 	global_transform.origin = map_data.cell_to_world(x, z)
+
+
+# Animate the unit along a pre-computed path.
+# path: Array of Vector2 steps (not including start), from movement.find_path().
+# from_cell: the grid cell the unit is departing from (before grid_x/z are committed).
+func walk_path(path: Array, from_cell: Vector2) -> void:
+	if path.empty():
+		emit_signal("move_finished")
+		return
+	_walk_path = path.duplicate()
+	_walk_from_cell = from_cell
+	_is_walking = true
+	_start_next_step()
+
+
+func _start_next_step() -> void:
+	if _walk_path.empty():
+		_is_walking = false
+		emit_signal("move_finished")
+		return
+	var next_cell: Vector2 = _walk_path.pop_front()
+	var dx = int(next_cell.x) - int(_walk_from_cell.x)
+	var dz = int(next_cell.y) - int(_walk_from_cell.y)
+	if abs(dz) > abs(dx):
+		facing = DIR_S if dz > 0 else DIR_N
+	else:
+		facing = DIR_E if dx > 0 else DIR_W
+	_walk_from = global_transform.origin
+	_walk_to = _map_data.cell_to_world(int(next_cell.x), int(next_cell.y))
+	_walk_t = 0.0
+	_walk_from_cell = next_cell
 
 
 func start_turn() -> void:

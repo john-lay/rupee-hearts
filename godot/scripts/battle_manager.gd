@@ -59,6 +59,8 @@ var _chariot_panel: Control = null
 var _facing_chooser: Control = null
 var _facing_next_state: int = State.SELECT_ACTION
 
+var _post_move_callback = null  # FuncRef or null, called after walk animation finishes
+
 
 func _process(delta: float) -> void:
 	if _active_indicator and _active_indicator.visible:
@@ -161,6 +163,9 @@ func _change_state(new_state: int) -> void:
 				_change_state(State.SELECT_ACTION)
 				return
 			_movement.show_attack_highlights(_attack_targets)
+		State.MOVE_UNIT:
+			_movement.clear_highlights()
+			_active_indicator.visible = false
 		State.SELECT_FACING:
 			_movement.clear_highlights()
 			_open_facing_chooser()
@@ -232,12 +237,32 @@ func player_cancel_turn() -> void:
 	_change_state(State.SELECT_ACTION)
 
 
-# Called by movement system after the player picks a destination
-func confirm_move(to_x: int, to_z: int) -> void:
-	_move_unit(active_unit, to_x, to_z)
+# Called by movement system after the player picks a destination.
+# callback (optional FuncRef): called instead of SELECT_ACTION when animation finishes.
+func confirm_move(to_x: int, to_z: int, callback = null) -> void:
+	_post_move_callback = callback
+	var from_cell = Vector2(active_unit.grid_x, active_unit.grid_z)
+	var path = _movement.find_path(active_unit, to_x, to_z)
+	# Commit logical position and occupancy immediately
+	map_data.clear_unit_at(active_unit.grid_x, active_unit.grid_z)
+	active_unit.grid_x = to_x
+	active_unit.grid_z = to_z
+	map_data.set_unit_at(to_x, to_z, active_unit)
 	active_unit.has_moved = true
+	_change_state(State.MOVE_UNIT)
+	active_unit.connect("move_finished", self, "_on_unit_move_finished", [], CONNECT_ONESHOT)
+	active_unit.walk_path(path, from_cell)
+
+
+func _on_unit_move_finished() -> void:
 	_update_active_indicator()
-	_change_state(State.SELECT_ACTION)
+	if _post_move_callback != null:
+		var cb = _post_move_callback
+		_post_move_callback = null
+		cb.call_func()
+	else:
+		_post_move_callback = null
+		_change_state(State.SELECT_ACTION)
 
 
 # Called by attack targeting after the player picks a target cell
@@ -307,12 +332,6 @@ func _get_cell_under_mouse() -> Vector2:
 
 # --- Actions ---
 
-func _move_unit(unit, to_x: int, to_z: int) -> void:
-	map_data.clear_unit_at(unit.grid_x, unit.grid_z)
-	unit.place_on_grid(to_x, to_z, map_data)
-	map_data.set_unit_at(to_x, to_z, unit)
-
-
 func _resolve_combat(attacker, defender) -> void:
 	# Auto-turn attacker to face defender before calculating direction bonus
 	attacker.facing = _direction_toward(attacker, defender.grid_x, defender.grid_z)
@@ -321,7 +340,12 @@ func _resolve_combat(attacker, defender) -> void:
 		- map_data.get_height(defender.grid_x, defender.grid_z)
 
 	var dir_mult := _get_attack_dir_mult(attacker, defender)
+	var dir_label := "front" if dir_mult == 1.0 else ("side" if dir_mult == 1.25 else "rear")
 	var damage = max(1, int(attacker.attack * dir_mult) - defender.defense)
+	print("%s → %s [%s x%.2f] dmg: %d (atk:%d def:%d)" % [
+		attacker.unit_name, defender.unit_name, dir_label, dir_mult, damage,
+		attacker.attack, defender.defense
+	])
 	if height_diff > 0:
 		damage = int(damage * 1.15)
 	elif height_diff < 0:
