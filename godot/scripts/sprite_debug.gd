@@ -276,4 +276,4 @@ func _on_next_frame() -> void:
 
 
 func _on_back() -> void:
-	get_tree().change_scene("res://scenes/main.tscn")
+	get_tree().change_scene("res://main.tscn")

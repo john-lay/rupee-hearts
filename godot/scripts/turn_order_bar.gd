@@ -1,10 +1,20 @@
 extends VBoxContainer
 
 const PREVIEW_COUNT = 5
-const CARD_WIDTH = 160
-const PORTRAIT_SIZE = 36
+const CARD_WIDTH    = 160
+const PORTRAIT_W    = 27   # 48/64 * 36 — keeps 3:4 portrait aspect ratio
+const PORTRAIT_H    = 36
+const SHEET_PATH    = "res://assets/sprites/soldier.png"
 
 var _turn_manager = null
+var _portrait_tex: ImageTexture = null
+
+
+func _ready() -> void:
+	var img = Image.new()
+	img.load(SHEET_PATH)
+	_portrait_tex = ImageTexture.new()
+	_portrait_tex.create_from_image(img, 0)  # flags=0: nearest-neighbour
 
 
 func setup(turn_manager) -> void:
@@ -48,22 +58,17 @@ func _add_card(unit, is_active: bool) -> void:
 	hbox.add_constant_override("separation", 7)
 	card.add_child(hbox)
 
-	# Portrait square
-	var portrait := Panel.new()
-	portrait.rect_min_size = Vector2(PORTRAIT_SIZE, PORTRAIT_SIZE)
-	var portrait_style := StyleBoxFlat.new()
-	portrait_style.bg_color = team_color if is_active else team_color.darkened(0.35)
-	portrait_style.set_corner_radius_all(2)
-	portrait.add_stylebox_override("panel", portrait_style)
+	# Portrait
+	var portrait_region := Rect2(352, 712, 48, 64) if unit.team == 0 else Rect2(408, 712, 48, 64)
+	var atlas := AtlasTexture.new()
+	atlas.atlas = _portrait_tex
+	atlas.region = portrait_region
+	var portrait := TextureRect.new()
+	portrait.texture = atlas
+	portrait.expand = true
+	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait.rect_min_size = Vector2(PORTRAIT_W, PORTRAIT_H)
 	hbox.add_child(portrait)
-
-	var initial := Label.new()
-	initial.text = unit.unit_name.left(1).to_upper()
-	initial.align = Label.ALIGN_CENTER
-	initial.valign = Label.VALIGN_CENTER
-	initial.add_color_override("font_color", Color(1, 1, 1, 0.9))
-	initial.set_anchors_and_margins_preset(Control.PRESET_WIDE)
-	portrait.add_child(initial)
 
 	# Info: name + HP bar
 	var vbox := VBoxContainer.new()
