@@ -60,7 +60,8 @@ var _facing_chooser: Control = null
 var _facing_next_state: int = State.SELECT_ACTION
 
 var _post_move_callback = null  # FuncRef or null, called after walk animation finishes
-var _portrait_tex: ImageTexture = null
+var _portrait_ally:  ImageTexture = null
+var _portrait_enemy: ImageTexture = null
 
 
 func _process(delta: float) -> void:
@@ -118,8 +119,12 @@ func _update_active_indicator() -> void:
 func _start_battle() -> void:
 	var img = Image.new()
 	img.load("res://assets/sprites/soldier.png")
-	_portrait_tex = ImageTexture.new()
-	_portrait_tex.create_from_image(img, 0)
+	var ally_crop = img.get_rect(Rect2(352, 712, 48, 64))
+	_portrait_ally = ImageTexture.new()
+	_portrait_ally.create_from_image(ally_crop, 0)
+	var enemy_crop = img.get_rect(Rect2(408, 712, 48, 64))
+	_portrait_enemy = ImageTexture.new()
+	_portrait_enemy.create_from_image(enemy_crop, 0)
 	_create_active_indicator()
 	_create_debug_checkbox()
 	_create_chariot_button()
@@ -698,17 +703,13 @@ func _build_chariot_card(snap: Dictionary, indent: int, is_current: bool, is_on_
 		spacer.rect_min_size = Vector2(indent * 16, 0)
 		row.add_child(spacer)
 
-	# Portrait
-	if _portrait_tex:
-		var portrait_region := Rect2(352, 712, 48, 64) if snap.acting_unit_team == 0 else Rect2(408, 712, 48, 64)
-		var atlas := AtlasTexture.new()
-		atlas.atlas = _portrait_tex
-		atlas.region = portrait_region
+	# Portrait — pre-cropped texture keeps nearest-neighbour filtering
+	if _portrait_ally:
 		var portrait := TextureRect.new()
-		portrait.texture = atlas
+		portrait.texture = _portrait_ally if snap.acting_unit_team == 0 else _portrait_enemy
 		portrait.expand = true
 		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		portrait.rect_min_size = Vector2(16, 21)
+		portrait.rect_min_size = Vector2(24, 32)
 		row.add_child(portrait)
 
 	var btn := Button.new()
