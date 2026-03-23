@@ -13,6 +13,12 @@ export var defense: int = 4
 export var speed: int = 10
 export var move_range: int = 3
 export var attack_range: int = 1
+export var accuracy: int = 55   # base hit chance %
+export var evasion: int = 0     # subtracts from attacker's accuracy
+
+# --- Temporary modifiers (set by buffs/debuffs) ---
+var accuracy_mod: int = 0
+var evasion_mod: int = 0
 
 # --- Direction ---
 const DIR_S = 0  # south  (+Z)
@@ -222,24 +228,28 @@ func set_alive(val: bool) -> void:
 
 func get_snapshot() -> Dictionary:
 	return {
-		"node":      self,
-		"grid_x":    grid_x,
-		"grid_z":    grid_z,
-		"hp":        hp,
-		"ct":        ct,
-		"facing":    facing,
-		"has_moved": has_moved,
-		"has_acted": has_acted,
-		"alive":     alive,
+		"node":         self,
+		"grid_x":       grid_x,
+		"grid_z":       grid_z,
+		"hp":           hp,
+		"ct":           ct,
+		"facing":       facing,
+		"has_moved":    has_moved,
+		"has_acted":    has_acted,
+		"alive":        alive,
+		"accuracy_mod": accuracy_mod,
+		"evasion_mod":  evasion_mod,
 	}
 
 
 func restore_from_snapshot(entry: Dictionary, map_data) -> void:
-	hp        = entry.hp
-	ct        = entry.ct
-	facing    = entry.get("facing", DIR_S)
-	has_moved = entry.has_moved
-	has_acted = entry.has_acted
+	hp           = entry.hp
+	ct           = entry.ct
+	facing       = entry.get("facing", DIR_S)
+	has_moved    = entry.has_moved
+	has_acted    = entry.has_acted
+	accuracy_mod = entry.get("accuracy_mod", 0)
+	evasion_mod  = entry.get("evasion_mod", 0)
 	set_alive(entry.alive)
 	if entry.alive:
 		place_on_grid(entry.grid_x, entry.grid_z, map_data)

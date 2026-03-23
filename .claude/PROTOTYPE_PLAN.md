@@ -5,6 +5,7 @@
 - **Turn system**: FFT-style CT (Charge Time) bar — all units share one queue; unit acts when CT reaches 100, CT resets to 0 after acting
 - **Camera**: Rotatable/pannable isometric — middle-mouse pan, Q/E rotate, scroll zoom
 - **Terrain height**: Multi-level elevation affects combat (height advantage +15% dmg, below -10%); moving up costs +1 move point per step, max climbable step = 1
+- **Accuracy**: Hit chance = clamp(accuracy + accuracy_mod − evasion − evasion_mod + dir_bonus, 5, 100). Direction bonus: front +0, side +15, rear +30. See [ACCURACY_SYSTEM.md](ACCURACY_SYSTEM.md).
 - **Enemy AI**: Greedy — close on nearest player unit, attack if in range, else wait
 - **Prototype scope**: 1 hand-crafted 6×6 map, 2 player units vs 2 enemies
 
@@ -36,7 +37,7 @@ Main (Spatial)
 | `battle_manager.gd` | Top-level state machine; coordinates all other systems |
 | `turn_manager.gd` | CT tick loop; determines whose turn it is |
 | `map_data.gd` | Grid queries: is cell walkable, who occupies it, cell height |
-| `unit.gd` | Stats (HP, ATK, DEF, SPD, move/attack range), CT value, grid position, facing direction, tile-by-tile walk animation (`walk_path()` / `move_finished` signal) |
+| `unit.gd` | Stats (HP, ATK, DEF, SPD, ACC, EVA, move/attack range), CT value, grid position, facing direction, tile-by-tile walk animation (`walk_path()` / `move_finished` signal). Buff/debuff slots: `accuracy_mod`, `evasion_mod`. |
 | `movement.gd` | BFS flood fill for reachable cells; A* pathfinding for movement |
 | `ai_controller.gd` | Greedy enemy logic: close on nearest player unit, attack if in range; async — uses `_after_ai_move` callback after walk animation completes |
 | `camera_controller.gd` | Middle-mouse pan, Q/E rotate around map center, scroll zoom |

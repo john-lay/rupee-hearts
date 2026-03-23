@@ -9,6 +9,7 @@ const SHEET_PATH    = "res://assets/sprites/soldier.png"
 var _turn_manager = null
 var _portrait_ally:  ImageTexture = null
 var _portrait_enemy: ImageTexture = null
+var _footer: VBoxContainer = null
 
 
 func _ready() -> void:
@@ -20,6 +21,12 @@ func _ready() -> void:
 	var enemy_crop = img.get_rect(Rect2(408, 712, 48, 64))
 	_portrait_enemy = ImageTexture.new()
 	_portrait_enemy.create_from_image(enemy_crop, 0)
+	_footer = VBoxContainer.new()
+	add_child(_footer)
+
+
+func add_to_footer(node: Control) -> void:
+	_footer.add_child(node)
 
 
 func setup(turn_manager) -> void:
@@ -28,7 +35,8 @@ func setup(turn_manager) -> void:
 
 func refresh(active_unit = null) -> void:
 	for child in get_children():
-		child.queue_free()
+		if child != _footer:
+			child.queue_free()
 	if not _turn_manager:
 		return
 
@@ -38,6 +46,8 @@ func refresh(active_unit = null) -> void:
 	var order = _turn_manager.preview_order(PREVIEW_COUNT)
 	for unit in order:
 		_add_card(unit, false)
+
+	move_child(_footer, get_child_count() - 1)
 
 
 func _add_card(unit, is_active: bool) -> void:

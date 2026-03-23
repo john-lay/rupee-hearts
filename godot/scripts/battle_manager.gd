@@ -62,6 +62,7 @@ var _facing_next_state: int = State.SELECT_ACTION
 var _post_move_callback = null  # FuncRef or null, called after walk animation finishes
 var _portrait_ally:  ImageTexture = null
 var _portrait_enemy: ImageTexture = null
+var _hit_chance_label: Label = null
 
 
 func _process(delta: float) -> void:
@@ -71,6 +72,15 @@ func _process(delta: float) -> void:
 		_active_indicator.material_override.set_shader_param(
 			"border_color", _INDICATOR_COLOR.linear_interpolate(_INDICATOR_COLOR.lightened(0.5), t)
 		)
+
+	if state == State.SELECT_ATTACK_TARGET and _hit_chance_label:
+		var cell = _get_cell_under_mouse()
+		var target = map_data.get_unit_at(int(cell.x), int(cell.y))
+		if target and cell in _attack_targets:
+			var pct = _calc_hit_chance(active_unit, target)
+			_hit_chance_label.text = "Hit: %d%%" % pct
+		else:
+			_hit_chance_label.text = "Hit: --"
 
 # Spawn positions from the prototype map layout
 const PLAYER_STARTS = [Vector2(1, 4), Vector2(4, 4)]
@@ -147,6 +157,11 @@ func _create_debug_checkbox() -> void:
 	chk.connect("toggled", self, "_on_debug_grid_toggled")
 	hbox.add_child(chk)
 
+	var sprite_btn := Button.new()
+	sprite_btn.text = "Debug Sprites"
+	sprite_btn.connect("pressed", self, "_on_sprite_debug_pressed")
+	hbox.add_child(sprite_btn)
+
 	get_node("../UI").add_child(hbox)
 
 
@@ -154,9 +169,15 @@ func _on_debug_grid_toggled(on: bool) -> void:
 	_movement.toggle_debug_grid(on)
 
 
+func _on_sprite_debug_pressed() -> void:
+	get_tree().change_scene("res://scenes/sprite_debug.tscn")
+
+
 # --- State machine ---
 
 func _change_state(new_state: int) -> void:
+	if new_state != State.SELECT_ATTACK_TARGET:
+		_hide_hit_chance_label()
 	state = new_state
 	emit_signal("state_changed", new_state)
 	match state:
@@ -173,6 +194,7 @@ func _change_state(new_state: int) -> void:
 				_change_state(State.SELECT_ACTION)
 				return
 			_movement.show_attack_highlights(_attack_targets)
+			_show_hit_chance_label()
 		State.MOVE_UNIT:
 			_movement.clear_highlights()
 			_active_indicator.visible = false
@@ -227,6 +249,8 @@ func has_attack_targets() -> bool:
 
 func player_cancel_turn() -> void:
 	if state != State.SELECT_ACTION or _current_node == null:
+		return
+	if active_unit == null or not active_unit.has_moved or active_unit.has_acted:
 		return
 	# Restore all units to turn-start state (position, HP, has_moved, has_acted)
 	# without disturbing the turn order or CT values beyond what the snapshot holds.
@@ -346,15 +370,25 @@ func _resolve_combat(attacker, defender) -> void:
 	# Auto-turn attacker to face defender before calculating direction bonus
 	attacker.facing = _direction_toward(attacker, defender.grid_x, defender.grid_z)
 
+	# Hit check
+	var hit_chance = _calc_hit_chance(attacker, defender)
+	var roll = randi() % 100
+	if roll >= hit_chance:
+		print("%s → %s [MISS] roll:%d vs %d%%" % [
+			attacker.unit_name, defender.unit_name, roll, hit_chance
+		])
+		_spawn_miss_label(defender)
+		return
+
 	var height_diff = map_data.get_height(attacker.grid_x, attacker.grid_z) \
 		- map_data.get_height(defender.grid_x, defender.grid_z)
 
 	var dir_mult := _get_attack_dir_mult(attacker, defender)
 	var dir_label := "front" if dir_mult == 1.0 else ("side" if dir_mult == 1.25 else "rear")
 	var damage = max(1, int(attacker.attack * dir_mult) - defender.defense)
-	print("%s → %s [%s x%.2f] dmg: %d (atk:%d def:%d)" % [
-		attacker.unit_name, defender.unit_name, dir_label, dir_mult, damage,
-		attacker.attack, defender.defense
+	print("%s → %s [%s x%.2f] hit:%d%% dmg:%d (atk:%d def:%d)" % [
+		attacker.unit_name, defender.unit_name, dir_label, dir_mult,
+		hit_chance, damage, attacker.attack, defender.defense
 	])
 	if height_diff > 0:
 		damage = int(damage * 1.15)
@@ -367,6 +401,17 @@ func _resolve_combat(attacker, defender) -> void:
 	if not defender.is_alive():
 		_remove_unit(defender)
 		_check_battle_over()
+
+
+func _calc_hit_chance(attacker, defender) -> int:
+	var dir_mult = _get_attack_dir_mult(attacker, defender)
+	# front=1.0 → +0, side=1.25 → +15, rear=1.5 → +30
+	var dir_bonus = int((dir_mult - 1.0) * 60)
+	return int(clamp(
+		attacker.accuracy + attacker.accuracy_mod + dir_bonus
+		- defender.evasion - defender.evasion_mod,
+		5, 100
+	))
 
 
 # Returns the world direction (DIR_*) from from_unit toward (to_x, to_z).
@@ -443,6 +488,50 @@ func _on_facing_chosen(screen_dir: int) -> void:
 	_change_state(_facing_next_state)
 
 
+func _show_hit_chance_label() -> void:
+	if _hit_chance_label and is_instance_valid(_hit_chance_label):
+		return
+	_hit_chance_label = Label.new()
+	_hit_chance_label.text = "Hit: --"
+	_hit_chance_label.anchor_bottom = 1.0
+	_hit_chance_label.anchor_top    = 1.0
+	_hit_chance_label.anchor_left   = 0.5
+	_hit_chance_label.anchor_right  = 0.5
+	_hit_chance_label.margin_top    = -56.0
+	_hit_chance_label.margin_bottom = -36.0
+	_hit_chance_label.margin_left   = -40.0
+	_hit_chance_label.margin_right  = 40.0
+	_hit_chance_label.align         = Label.ALIGN_CENTER
+	_hit_chance_label.add_color_override("font_color", Color(1.0, 1.0, 0.5))
+	get_node("../UI").add_child(_hit_chance_label)
+
+
+func _hide_hit_chance_label() -> void:
+	if _hit_chance_label and is_instance_valid(_hit_chance_label):
+		_hit_chance_label.queue_free()
+	_hit_chance_label = null
+
+
+func _spawn_miss_label(unit) -> void:
+	var label := Label.new()
+	label.text = "MISS"
+	label.add_color_override("font_color", Color(0.9, 0.9, 0.9))
+	get_node("../UI").add_child(label)
+	var world_pos = unit.global_transform.origin + Vector3(0, 2.0, 0)
+	var screen_pos = _camera.unproject_position(world_pos)
+	label.rect_position = screen_pos + Vector2(-12, 0)
+	var tween := Tween.new()
+	label.add_child(tween)
+	tween.interpolate_property(label, "rect_position",
+		label.rect_position, label.rect_position + Vector2(0, -50),
+		0.9, Tween.TRANS_LINEAR)
+	tween.interpolate_property(label, "modulate",
+		Color(1, 1, 1, 1), Color(1, 1, 1, 0),
+		0.9, Tween.TRANS_LINEAR)
+	tween.connect("tween_all_completed", label, "queue_free")
+	tween.start()
+
+
 func _spawn_damage_number(amount: int, unit) -> void:
 	var label := Label.new()
 	label.text = str(amount)
@@ -508,12 +597,12 @@ func _spawn_units() -> void:
 	var UnitScript = load("res://scripts/unit.gd")
 
 	var player_configs = [
-		{name = "Knight", team = UnitScript.Team.PLAYER, hp = 28, atk = 10, def = 6, spd = 8,  move = 3, range = 1},
-		{name = "Archer", team = UnitScript.Team.PLAYER, hp = 20, atk = 9,  def = 3, spd = 12, move = 3, range = 2},
+		{name = "Knight", team = UnitScript.Team.PLAYER, hp = 28, atk = 10, def = 6, spd = 8,  move = 3, range = 1, acc = 55, eva = 5},
+		{name = "Archer", team = UnitScript.Team.PLAYER, hp = 20, atk = 9,  def = 3, spd = 12, move = 3, range = 2, acc = 60, eva = 10},
 	]
 	var enemy_configs = [
-		{name = "Goblin",  team = UnitScript.Team.ENEMY, hp = 16, atk = 7, def = 2, spd = 10, move = 3, range = 1},
-		{name = "Goblin2", team = UnitScript.Team.ENEMY, hp = 16, atk = 7, def = 2, spd = 10, move = 3, range = 1},
+		{name = "Goblin",  team = UnitScript.Team.ENEMY, hp = 16, atk = 7, def = 2, spd = 10, move = 3, range = 1, acc = 50, eva = 0},
+		{name = "Goblin2", team = UnitScript.Team.ENEMY, hp = 16, atk = 7, def = 2, spd = 10, move = 3, range = 1, acc = 50, eva = 0},
 	]
 
 	for i in player_configs.size():
@@ -537,6 +626,9 @@ func _snapshot_turn(unit) -> void:
 		branch_id = _next_branch_id
 		_next_branch_id += 1
 
+	var rng_seed = randi()
+	seed(rng_seed)
+
 	var snap := {
 		"id":               _chariot_node_id,
 		"turn_number":      _chariot_turn_number,
@@ -546,6 +638,7 @@ func _snapshot_turn(unit) -> void:
 		"parent":           _current_node,
 		"children":         [],
 		"units":            [],
+		"rng_seed":         rng_seed,
 	}
 	_chariot_node_id += 1
 	_chariot_turn_number += 1
@@ -587,6 +680,7 @@ func _restore_snapshot(snap: Dictionary) -> void:
 	_turn_order_bar.refresh(active_unit)
 
 	_current_node = snap  # reposition in tree; id-based comparisons avoid cyclic dict hashing
+	seed(snap.rng_seed)  # restore RNG so hit rolls replay identically
 
 	_close_chariot()
 	_change_state(State.SELECT_ACTION)
@@ -618,16 +712,8 @@ func _get_current_path() -> Dictionary:
 func _create_chariot_button() -> void:
 	var btn := Button.new()
 	btn.text = "Chariot"
-	btn.anchor_top    = 1.0
-	btn.anchor_bottom = 1.0
-	btn.anchor_left   = 0.0
-	btn.anchor_right  = 0.0
-	btn.margin_left   = 8.0
-	btn.margin_top    = -58.0
-	btn.margin_bottom = -34.0
-	btn.margin_right  = 100.0
 	btn.connect("pressed", self, "_on_chariot_pressed")
-	get_node("../UI").add_child(btn)
+	_turn_order_bar.add_to_footer(btn)
 
 
 func _on_chariot_pressed() -> void:
@@ -764,6 +850,8 @@ func _spawn_unit(scene, cfg: Dictionary, grid_pos: Vector2) -> void:
 	unit.speed = cfg.spd
 	unit.move_range = cfg.move
 	unit.attack_range = cfg.range
+	unit.accuracy = cfg.acc
+	unit.evasion = cfg.eva
 	units_node.add_child(unit)
 	unit.place_on_grid(int(grid_pos.x), int(grid_pos.y), map_data)
 	map_data.set_unit_at(int(grid_pos.x), int(grid_pos.y), unit)

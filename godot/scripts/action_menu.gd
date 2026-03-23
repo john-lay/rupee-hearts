@@ -29,6 +29,7 @@ func _on_state_changed(new_state: int) -> void:
 		var unit = _battle_manager.active_unit
 		btn_move.disabled   = unit.has_moved
 		btn_attack.disabled = unit.has_acted or not _battle_manager.has_attack_targets()
+		btn_cancel.disabled = not unit.has_moved or unit.has_acted
 		show()
 	else:
 		hide()
