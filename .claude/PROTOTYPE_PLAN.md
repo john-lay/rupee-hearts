@@ -6,6 +6,7 @@
 - **Camera**: Rotatable/pannable isometric — middle-mouse pan, Q/E rotate, scroll zoom
 - **Terrain height**: Multi-level elevation affects combat (height advantage +15% dmg, below -10%); moving up costs +1 move point per step, max climbable step = 1
 - **Accuracy**: Hit chance = clamp(accuracy + accuracy_mod − evasion − evasion_mod + dir_bonus, 5, 100). Direction bonus: front +0, side +15, rear +30. See [ACCURACY_SYSTEM.md](ACCURACY_SYSTEM.md).
+- **Weather**: `weather_system.gd` (Control) added to UI CanvasLayer at index 0 (behind all UI). Draws a dark tint + animated rain streaks via `_draw()` / `draw_line()`. Toggled by a checkbox in the debug bar. Extend to other weather types by adding more draw modes.
 - **Enemy AI**: Greedy — close on nearest player unit, attack if in range, else wait
 - **Prototype scope**: 1 hand-crafted 6×6 map, 2 player units vs 2 enemies
 

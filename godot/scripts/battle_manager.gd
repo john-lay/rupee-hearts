@@ -63,6 +63,7 @@ var _post_move_callback = null  # FuncRef or null, called after walk animation f
 var _portrait_ally:  ImageTexture = null
 var _portrait_enemy: ImageTexture = null
 var _hit_chance_label: Label = null
+var _weather: Node = null
 
 
 func _process(delta: float) -> void:
@@ -135,6 +136,10 @@ func _start_battle() -> void:
 	var enemy_crop = img.get_rect(Rect2(408, 712, 48, 64))
 	_portrait_enemy = ImageTexture.new()
 	_portrait_enemy.create_from_image(enemy_crop, 0)
+	_weather = load("res://scripts/weather_system.gd").new()
+	var ui = get_node("../UI")
+	ui.add_child(_weather)
+	ui.move_child(_weather, 0)  # behind all other UI nodes
 	_create_active_indicator()
 	_create_debug_checkbox()
 	_create_chariot_button()
@@ -157,6 +162,11 @@ func _create_debug_checkbox() -> void:
 	chk.connect("toggled", self, "_on_debug_grid_toggled")
 	hbox.add_child(chk)
 
+	var rain_chk := CheckBox.new()
+	rain_chk.text = "Rain"
+	rain_chk.connect("toggled", self, "_on_rain_toggled")
+	hbox.add_child(rain_chk)
+
 	var sprite_btn := Button.new()
 	sprite_btn.text = "Debug Sprites"
 	sprite_btn.connect("pressed", self, "_on_sprite_debug_pressed")
@@ -167,6 +177,11 @@ func _create_debug_checkbox() -> void:
 
 func _on_debug_grid_toggled(on: bool) -> void:
 	_movement.toggle_debug_grid(on)
+
+
+func _on_rain_toggled(on: bool) -> void:
+	if _weather:
+		_weather.visible = on
 
 
 func _on_sprite_debug_pressed() -> void:
