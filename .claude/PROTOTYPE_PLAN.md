@@ -18,6 +18,7 @@ Main (Spatial)
 ├── MapData              ← logical grid: occupancy, walkability, cell heights
 ├── BattleManager        ← state machine (owns the game loop)
 ├── TurnManager          ← CT system, who acts next
+├── OccluderManager      ← fades tiles that block unit visibility
 ├── Units (Spatial)      ← container for all unit instances
 │   ├── Knight (Unit)
 │   ├── Archer (Unit)
@@ -42,6 +43,7 @@ Main (Spatial)
 | `movement.gd` | BFS flood fill for reachable cells; A* pathfinding for movement |
 | `ai_controller.gd` | Greedy enemy logic: close on nearest player unit, attack if in range; async — uses `_after_ai_move` callback after walk animation completes |
 | `camera_controller.gd` | Middle-mouse pan, Q/E rotate around map center, scroll zoom |
+| `occluder_manager.gd` | Each frame, checks 1–3 grid neighbours in the camera's direction for each unit. If a neighbour tile is taller than the unit's tile, swaps it out of the GridMap and replaces the top layer with a dithered MeshInstance (25% discard checkerboard, GLES2-safe). Restored immediately when no longer occluding. |
 
 ## Battle State Machine
 

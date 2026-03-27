@@ -18,6 +18,7 @@ Main (Spatial)
 ├── BattleManager    — battle_manager.gd: state machine, input, combat
 ├── Movement         — movement.gd: BFS reachable cells, A* pathfinding, highlights
 ├── AIController     — ai_controller.gd: greedy enemy AI
+├── OccluderManager  — occluder_manager.gd: fades tiles blocking unit view
 ├── Units (Spatial)  — spawned unit nodes live here
 ├── CameraRig        — camera_controller.gd: A/D rotate, W/S zoom
 │   └── Camera
@@ -35,6 +36,7 @@ Main (Spatial)
 | `movement.gd` | BFS flood fill for reachable cells, A* for pathing. Tile highlights use an inline GLSL shader (fill + pulsing border). |
 | `unit.gd` | Stats, HP bar (3D MeshInstance), name label (2D Label projected via `unproject_position`), CT, facing direction. Tile-by-tile walk animation via `walk_path()`; emits `move_finished` signal when done. |
 | `turn_manager.gd` | Ticks all units' CT by their speed each frame until one hits 100, then emits `turn_ready`. |
+| `occluder_manager.gd` | Each frame checks neighbours in the camera's direction for each unit. Tiles taller than the unit are swapped out of GridMap; top layer replaced with a dithered MeshInstance (25% discard, GLES2-safe). Restored when no longer occluding. |
 | `camera_controller.gd` | A/D = 90° discrete rotation (lerp-smoothed), 4 isometric positions. W/S = 3 orthographic zoom levels (7/10/14), default mid. Orthographic projection at 35.264° elevation. |
 
 ## Critical Godot 3 / GLES2 Constraints

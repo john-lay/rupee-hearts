@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=2]
+[gd_scene load_steps=11 format=2]
 
 [ext_resource path="res://grass_mesh_lib.tres" type="MeshLibrary" id=1]
 [ext_resource path="res://scripts/map_data.gd" type="Script" id=2]
@@ -9,6 +9,7 @@
 [ext_resource path="res://scripts/camera_controller.gd" type="Script" id=7]
 [ext_resource path="res://scenes/ui/action_menu.tscn" type="PackedScene" id=8]
 [ext_resource path="res://scenes/ui/turn_order_bar.tscn" type="PackedScene" id=9]
+[ext_resource path="res://scripts/occluder_manager.gd" type="Script" id=10]
 
 [node name="Main" type="Spatial"]
 
@@ -29,6 +30,9 @@ script = ExtResource( 5 )
 
 [node name="AIController" type="Node" parent="."]
 script = ExtResource( 6 )
+
+[node name="OccluderManager" type="Node" parent="."]
+script = ExtResource( 10 )
 
 [node name="Units" type="Spatial" parent="."]
 
