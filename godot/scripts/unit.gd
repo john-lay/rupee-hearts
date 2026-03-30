@@ -13,6 +13,8 @@ export var defense: int = 4
 export var speed: int = 10
 export var move_range: int = 3
 export var attack_range: int = 1
+export var jump: int = 3        # max climbable height difference per step
+export var flying: bool = false # ignores climb cap and height movement cost; counts as 1 tile higher for combat
 export var accuracy: int = 55   # base hit chance %
 export var evasion: int = 0     # subtracts from attacker's accuracy
 

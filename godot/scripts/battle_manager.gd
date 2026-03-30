@@ -367,16 +367,22 @@ func _get_cell_under_mouse() -> Vector2:
 	if abs(ray_dir.y) < 0.001:
 		return Vector2(-1, -1)
 
-	# Intersect with the top surface of ground tiles.
 	# GridMap.world_to_map() does not exist in Godot 3 so we calculate manually.
+	# Test from the tallest possible tile height down so elevated tiles take priority.
 	var grid_map = $"../GridMap"
-	var plane_y = grid_map.cell_size.y
-	var t = (plane_y - ray_origin.y) / ray_dir.y
-	var hit = ray_origin + ray_dir * t
+	var cs = grid_map.cell_size
+	for h in range(map_data.MAP_DEPTH, 0, -1):
+		var plane_y = cs.y * h
+		var t = (plane_y - ray_origin.y) / ray_dir.y
+		if t < 0:
+			continue
+		var hit = ray_origin + ray_dir * t
+		var gx = int(floor(hit.x / cs.x))
+		var gz = int(floor(hit.z / cs.z))
+		if map_data.is_in_bounds(gx, gz) and map_data.get_height(gx, gz) == h:
+			return Vector2(gx, gz)
 
-	var grid_x = int(floor(hit.x / grid_map.cell_size.x))
-	var grid_z = int(floor(hit.z / grid_map.cell_size.z))
-	return Vector2(grid_x, grid_z)
+	return Vector2(-1, -1)
 
 
 # --- Actions ---
@@ -395,8 +401,7 @@ func _resolve_combat(attacker, defender) -> void:
 		_spawn_miss_label(defender)
 		return
 
-	var height_diff = map_data.get_height(attacker.grid_x, attacker.grid_z) \
-		- map_data.get_height(defender.grid_x, defender.grid_z)
+	var height_diff = _effective_height(attacker) - _effective_height(defender)
 
 	var dir_mult := _get_attack_dir_mult(attacker, defender)
 	var dir_label := "front" if dir_mult == 1.0 else ("side" if dir_mult == 1.25 else "rear")
@@ -422,11 +427,18 @@ func _calc_hit_chance(attacker, defender) -> int:
 	var dir_mult = _get_attack_dir_mult(attacker, defender)
 	# front=1.0 → +0, side=1.25 → +15, rear=1.5 → +30
 	var dir_bonus = int((dir_mult - 1.0) * 60)
+	var height_diff = _effective_height(attacker) - _effective_height(defender)
+	var height_bonus = 15 if height_diff > 0 else (-10 if height_diff < 0 else 0)
 	return int(clamp(
-		attacker.accuracy + attacker.accuracy_mod + dir_bonus
+		attacker.accuracy + attacker.accuracy_mod + dir_bonus + height_bonus
 		- defender.evasion - defender.evasion_mod,
 		5, 100
 	))
+
+
+# Effective height for combat: flying units count as 1 tile higher than their tile.
+func _effective_height(unit) -> int:
+	return map_data.get_height(unit.grid_x, unit.grid_z) + (1 if unit.flying else 0)
 
 
 # Returns the world direction (DIR_*) from from_unit toward (to_x, to_z).

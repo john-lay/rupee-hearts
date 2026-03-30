@@ -3,7 +3,7 @@ extends Node
 # Cardinal neighbours only (no diagonals)
 const DIRS = [Vector2(1, 0), Vector2(-1, 0), Vector2(0, 1), Vector2(0, -1)]
 
-# Maximum height difference a unit can step up or down in one move
+# Fallback climb limit used only if a unit somehow lacks a jump stat
 const MAX_STEP = 1
 
 onready var map_data = get_node("../MapData")
@@ -71,13 +71,14 @@ func get_reachable_cells(unit) -> Array:
 			var to_height   = map_data.get_height(nx, nz)
 			var step = to_height - from_height
 
-			# Cannot climb more than MAX_STEP, can drop any amount
-			if step > MAX_STEP:
+			if not unit.flying and step > unit.jump:
 				continue
 			if not map_data.is_walkable(nx, nz) and map_data.get_unit_at(nx, nz) != unit:
 				continue
 
-			var cost = 1 + max(0, step)
+			var cost: int = 1
+			if not unit.flying:
+				cost += int(max(0, step))
 			var remaining = mp - cost
 			if remaining < 0:
 				continue
@@ -135,11 +136,12 @@ func find_path(unit, to_x: int, to_z: int) -> Array:
 			if not map_data.is_in_bounds(nx, nz):
 				continue
 			var step = map_data.get_height(nx, nz) - map_data.get_height(int(current.x), int(current.y))
-			if step > MAX_STEP:
+			if not unit.flying and step > unit.jump:
 				continue
 			if not map_data.is_walkable(nx, nz) and nb != goal:
 				continue
-			var new_g = g[current] + 1 + max(0, step)
+			var step_cost: int = 0 if unit.flying else int(max(0, step))
+			var new_g = g[current] + 1 + step_cost
 			if not g.has(nb) or new_g < g[nb]:
 				g[nb] = new_g
 				came_from[nb] = current
