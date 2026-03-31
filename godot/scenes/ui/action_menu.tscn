@@ -8,17 +8,31 @@ anchor_right = 1.0
 margin_left = -160
 margin_right = -8
 margin_top = 8
-margin_bottom = 120
+margin_bottom = 200
 script = ExtResource( 1 )
 
-[node name="BtnMove" type="Button" parent="."]
+[node name="MainButtons" type="VBoxContainer" parent="."]
+
+[node name="BtnMove" type="Button" parent="MainButtons"]
 text = "Move"
 
-[node name="BtnAttack" type="Button" parent="."]
+[node name="BtnAttack" type="Button" parent="MainButtons"]
 text = "Attack"
 
-[node name="BtnWait" type="Button" parent="."]
+[node name="BtnItem" type="Button" parent="MainButtons"]
+text = "Item"
+
+[node name="BtnWait" type="Button" parent="MainButtons"]
 text = "Wait"
 
-[node name="BtnCancel" type="Button" parent="."]
+[node name="BtnCancel" type="Button" parent="MainButtons"]
 text = "Cancel"
+
+[node name="ItemSubMenu" type="VBoxContainer" parent="."]
+visible = false
+
+[node name="BtnHealingPotion" type="Button" parent="ItemSubMenu"]
+text = "Healing Potion (x5)"
+
+[node name="BtnItemBack" type="Button" parent="ItemSubMenu"]
+text = "Back"

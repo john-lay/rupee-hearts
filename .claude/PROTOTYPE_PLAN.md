@@ -4,9 +4,10 @@
 
 - **Turn system**: FFT-style CT (Charge Time) bar — all units share one queue; unit acts when CT reaches 100, CT resets to 0 after acting
 - **Camera**: Rotatable/pannable isometric — middle-mouse pan, Q/E rotate, scroll zoom
-- **Terrain height**: Multi-level elevation affects combat (height advantage +15% dmg, below -10%); moving up costs +1 move point per step, max climbable step = 1
-- **Accuracy**: Hit chance = clamp(accuracy + accuracy_mod − evasion − evasion_mod + dir_bonus, 5, 100). Direction bonus: front +0, side +15, rear +30. See [ACCURACY_SYSTEM.md](ACCURACY_SYSTEM.md).
+- **Terrain height**: Multi-level elevation affects combat (height advantage +15% dmg/acc, below -10%); moving up costs +1 move point per step. Each unit has a `jump` stat capping the max climbable height per step. `flying` units ignore the climb cap, pay flat movement cost, and count as 1 tile higher for combat.
+- **Accuracy**: Hit chance = clamp(accuracy + accuracy_mod − evasion − evasion_mod + dir_bonus + height_bonus, 5, 100). Direction bonus: front +0, side +15, rear +30. Height bonus: higher +15, lower −10. See [ACCURACY_SYSTEM.md](ACCURACY_SYSTEM.md).
 - **Weather**: `weather_system.gd` (Control) added to UI CanvasLayer at index 0 (behind all UI). Draws a dark tint + animated rain streaks via `_draw()` / `draw_line()`. Toggled by a checkbox in the debug bar. Extend to other weather types by adding more draw modes.
+- **Items**: Shared pool of 5 Healing Potions (10 HP flat). Targets current tile + 4 cardinal neighbours within jump height range (can target any unit). Selecting Item opens a sub-list of available items before entering target selection. Using an item plays the "Raise Hands" sprite animation and shows a green floating heal number. Mutually exclusive with attacking (`has_acted`).
 - **Enemy AI**: Greedy — close on nearest player unit, attack if in range, else wait
 - **Prototype scope**: 1 hand-crafted 6×6 map, 2 player units vs 2 enemies
 
@@ -36,13 +37,13 @@ Main (Spatial)
 
 | Script | Responsibility |
 |--------|---------------|
-| `battle_manager.gd` | Top-level state machine; coordinates all other systems |
+| `battle_manager.gd` | Top-level state machine; coordinates all other systems. Manages item stock (`item_stock`, `ITEM_HEAL_AMOUNT`), spawns floating damage/heal numbers, resolves combat with directional and height multipliers. |
 | `turn_manager.gd` | CT tick loop; determines whose turn it is |
 | `map_data.gd` | Grid queries: is cell walkable, who occupies it, cell height |
-| `unit.gd` | Stats (HP, ATK, DEF, SPD, ACC, EVA, move/attack range), CT value, grid position, facing direction, tile-by-tile walk animation (`walk_path()` / `move_finished` signal). Buff/debuff slots: `accuracy_mod`, `evasion_mod`. |
-| `movement.gd` | BFS flood fill for reachable cells; A* pathfinding for movement |
+| `unit.gd` | Stats (HP, ATK, DEF, SPD, ACC, EVA, move/attack range, `jump`, `flying`), CT value, grid position, facing direction, tile-by-tile walk animation (`walk_path()` / `move_finished` signal). Buff/debuff slots: `accuracy_mod`, `evasion_mod`. `heal(amount)` heals HP and refreshes bar. `play_raise_hands(duration)` plays the raise-hands sprite frame. |
+| `movement.gd` | BFS flood fill for reachable cells; A* pathfinding. Tile highlights: blue = move, red = attack, green = item targets. |
 | `ai_controller.gd` | Greedy enemy logic: close on nearest player unit, attack if in range; async — uses `_after_ai_move` callback after walk animation completes |
-| `camera_controller.gd` | Middle-mouse pan, Q/E rotate around map center, scroll zoom |
+| `camera_controller.gd` | A/D rotate 90° (lerp-smoothed), W/S zoom (3 levels), orthographic isometric projection. |
 | `occluder_manager.gd` | Each frame, checks 1–3 grid neighbours in the camera's direction for each unit. If a neighbour tile is taller than the unit's tile, swaps it out of the GridMap and replaces the top layer with a dithered MeshInstance (25% discard checkerboard, GLES2-safe). Restored immediately when no longer occluding. |
 
 ## Battle State Machine
@@ -54,9 +55,10 @@ INIT
               ├── player unit → SELECT_ACTION
               └── enemy unit  → ENEMY_THINK → RESOLVE_COMBAT → TICK_CT
 
-SELECT_ACTION              ← show menu: Move / Attack / Wait / Cancel
-        ├── Move   → SELECT_MOVE_TARGET  → MOVE_UNIT → SELECT_ACTION
+SELECT_ACTION              ← show menu: Move / Attack / Item / Wait / Cancel
+        ├── Move   → SELECT_MOVE_TARGET   → MOVE_UNIT → SELECT_ACTION
         ├── Attack → SELECT_ATTACK_TARGET → RESOLVE_COMBAT → SELECT_ACTION
+        ├── Item   → (item sub-list) → SELECT_ITEM_TARGET → SELECT_ACTION
         ├── Wait   → SELECT_FACING → END_TURN
         └── Cancel → restore snapshot → SELECT_ACTION
 

@@ -14,6 +14,7 @@ enum State {
 	BATTLE_OVER,
 	CHARIOT_SELECT,
 	SELECT_FACING,
+	SELECT_ITEM_TARGET,
 }
 
 # Direction constants — must match unit.gd
@@ -44,7 +45,11 @@ onready var _turn_order_bar = $"../UI/TurnOrderBar"
 var state: int = State.INIT
 var active_unit = null   # the unit currently taking their turn
 var _reachable_cells := []
-var _attack_targets := []
+var _attack_targets  := []
+var _item_targets    := []
+var item_stock: int = 5
+
+const ITEM_HEAL_AMOUNT = 10
 var _active_indicator: MeshInstance
 var _indicator_pulse_time: float = 0.0
 const _INDICATOR_COLOR = Color(1.0, 0.85, 0.0)
@@ -200,9 +205,14 @@ func _change_state(new_state: int) -> void:
 			turn_manager.tick_until_next()
 		State.SELECT_ACTION:
 			_movement.clear_highlights()
+			_update_active_indicator()
 		State.SELECT_MOVE_TARGET:
 			_reachable_cells = _movement.get_reachable_cells(active_unit)
 			_movement.show_move_highlights(_reachable_cells)
+		State.SELECT_ITEM_TARGET:
+			_active_indicator.visible = false
+			_item_targets = _get_item_targets(active_unit)
+			_movement.show_item_highlights(_item_targets)
 		State.SELECT_ATTACK_TARGET:
 			_attack_targets = _movement.get_attack_targets(active_unit)
 			if _attack_targets.empty():
@@ -249,6 +259,11 @@ func player_select_move() -> void:
 func player_select_attack() -> void:
 	if state == State.SELECT_ACTION and not active_unit.has_acted:
 		_change_state(State.SELECT_ATTACK_TARGET)
+
+
+func player_select_item() -> void:
+	if state == State.SELECT_ACTION and not active_unit.has_acted and item_stock > 0:
+		_change_state(State.SELECT_ITEM_TARGET)
 
 
 func player_wait() -> void:
@@ -337,7 +352,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 
 	# Cancel targeting with right-click or Escape
-	if state == State.SELECT_MOVE_TARGET or state == State.SELECT_ATTACK_TARGET:
+	if state == State.SELECT_MOVE_TARGET or state == State.SELECT_ATTACK_TARGET or state == State.SELECT_ITEM_TARGET:
 		if (event is InputEventKey and event.pressed and event.scancode == KEY_ESCAPE) or \
 				(event is InputEventMouseButton and event.pressed and event.button_index == BUTTON_RIGHT):
 			_change_state(State.SELECT_ACTION)
@@ -357,6 +372,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		State.SELECT_ATTACK_TARGET:
 			if cell in _attack_targets:
 				confirm_attack(map_data.get_unit_at(x, z))
+		State.SELECT_ITEM_TARGET:
+			if cell in _item_targets:
+				confirm_item_use(map_data.get_unit_at(x, z))
 
 
 func _get_cell_under_mouse() -> Vector2:
@@ -386,6 +404,39 @@ func _get_cell_under_mouse() -> Vector2:
 
 
 # --- Actions ---
+
+func _get_item_targets(unit) -> Array:
+	var targets := []
+	var ux: int = unit.grid_x
+	var uz: int = unit.grid_z
+	# Current tile — can always use on self
+	targets.append(Vector2(ux, uz))
+	# 4 orthogonal neighbours within one-step height reach
+	for dir in [Vector2(1,0), Vector2(-1,0), Vector2(0,1), Vector2(0,-1)]:
+		var nx: int = ux + int(dir.x)
+		var nz: int = uz + int(dir.y)
+		if not map_data.is_in_bounds(nx, nz):
+			continue
+		var step: int = map_data.get_height(nx, nz) - map_data.get_height(ux, uz)
+		if not unit.flying and step > unit.jump:
+			continue
+		if map_data.get_unit_at(nx, nz) != null:
+			targets.append(Vector2(nx, nz))
+	return targets
+
+
+func confirm_item_use(target_unit) -> void:
+	item_stock -= 1
+	var healed: int = target_unit.heal(ITEM_HEAL_AMOUNT)
+	active_unit.play_raise_hands(1.0)
+	_spawn_heal_number(healed, target_unit)
+	_turn_order_bar.refresh(active_unit)
+	print("%s used item on %s (+%d HP, stock: %d)" % [
+		active_unit.unit_name, target_unit.unit_name, healed, item_stock
+	])
+	active_unit.has_acted = true
+	_change_state(State.SELECT_ACTION)
+
 
 func _resolve_combat(attacker, defender) -> void:
 	# Auto-turn attacker to face defender before calculating direction bonus
@@ -563,6 +614,28 @@ func _spawn_damage_number(amount: int, unit) -> void:
 	var label := Label.new()
 	label.text = str(amount)
 	label.add_color_override("font_color", Color(1.0, 0.9, 0.1))
+	get_node("../UI").add_child(label)
+
+	var world_pos = unit.global_transform.origin + Vector3(0, 2.0, 0)
+	var screen_pos = _camera.unproject_position(world_pos)
+	label.rect_position = screen_pos + Vector2(-12, 0)
+
+	var tween := Tween.new()
+	label.add_child(tween)
+	tween.interpolate_property(label, "rect_position",
+		label.rect_position, label.rect_position + Vector2(0, -50),
+		0.9, Tween.TRANS_LINEAR)
+	tween.interpolate_property(label, "modulate",
+		Color(1, 1, 1, 1), Color(1, 1, 1, 0),
+		0.9, Tween.TRANS_LINEAR)
+	tween.connect("tween_all_completed", label, "queue_free")
+	tween.start()
+
+
+func _spawn_heal_number(amount: int, unit) -> void:
+	var label := Label.new()
+	label.text = "+%d" % amount
+	label.add_color_override("font_color", Color(0.3, 1.0, 0.4))
 	get_node("../UI").add_child(label)
 
 	var world_pos = unit.global_transform.origin + Vector3(0, 2.0, 0)

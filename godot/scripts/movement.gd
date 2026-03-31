@@ -179,6 +179,12 @@ func show_attack_highlights(cells: Array) -> void:
 		_add_highlight(cell, Color(1.0, 0.25, 0.25))
 
 
+func show_item_highlights(cells: Array) -> void:
+	clear_highlights()
+	for cell in cells:
+		_add_highlight(cell, Color(0.25, 0.9, 0.35))
+
+
 func clear_highlights() -> void:
 	for entry in _highlight_meshes:
 		if is_instance_valid(entry.mi):

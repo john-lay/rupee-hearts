@@ -23,7 +23,7 @@ Main (Spatial)
 ├── CameraRig        — camera_controller.gd: A/D rotate, W/S zoom
 │   └── Camera
 └── UI (CanvasLayer)
-    ├── ActionMenu   — Move / Attack / Wait / Cancel buttons
+    ├── ActionMenu   — Move / Attack / Item / Wait / Cancel buttons; Item opens a sub-list
     └── TurnOrderBar — CT preview bar
 ```
 
@@ -32,9 +32,9 @@ Main (Spatial)
 | Script | Role |
 |--------|------|
 | `map_data.gd` | `MAP_LAYOUT[z][x]` defines heights. Provides `cell_to_world()`, `is_walkable()`, `get_height()`, occupancy grid. |
-| `battle_manager.gd` | State machine: TICK_CT → SELECT_ACTION → SELECT_MOVE/ATTACK_TARGET → **MOVE_UNIT** → SELECT_FACING → END_TURN → ENEMY_THINK. Also CHARIOT_SELECT for timeline rewind. Spawns units, handles mouse picking, resolves combat with directional damage multipliers. `confirm_move()` is async — occupancy committed immediately, walk animation driven by `move_finished` signal. |
-| `movement.gd` | BFS flood fill for reachable cells, A* for pathing. Tile highlights use an inline GLSL shader (fill + pulsing border). |
-| `unit.gd` | Stats, HP bar (3D MeshInstance), name label (2D Label projected via `unproject_position`), CT, facing direction. Tile-by-tile walk animation via `walk_path()`; emits `move_finished` signal when done. |
+| `battle_manager.gd` | State machine: TICK_CT → SELECT_ACTION → SELECT_MOVE/ATTACK/ITEM_TARGET → **MOVE_UNIT** → SELECT_FACING → END_TURN → ENEMY_THINK. Also CHARIOT_SELECT for timeline rewind. Spawns units, handles mouse picking, resolves combat with directional and height multipliers. Manages shared item pool (`item_stock`). `confirm_move()` is async — occupancy committed immediately, walk animation driven by `move_finished` signal. |
+| `movement.gd` | BFS flood fill for reachable cells, A* for pathing. Tile highlights use an inline GLSL shader (fill + pulsing border): blue = move, red = attack, green = item targets. Jump stat gates height traversal; flying units ignore climb cap. |
+| `unit.gd` | Stats (including `jump` and `flying`), HP bar (3D MeshInstance), name label (2D Label projected via `unproject_position`), CT, facing direction. Tile-by-tile walk animation via `walk_path()`; emits `move_finished` signal when done. `heal(amount)` updates HP and bar. `play_raise_hands(duration)` shows the raise-hands sprite frame for the given duration. |
 | `turn_manager.gd` | Ticks all units' CT by their speed each frame until one hits 100, then emits `turn_ready`. |
 | `occluder_manager.gd` | Each frame checks neighbours in the camera's direction for each unit. Tiles taller than the unit are swapped out of GridMap; top layer replaced with a dithered MeshInstance (25% discard, GLES2-safe). Restored when no longer occluding. |
 | `camera_controller.gd` | A/D = 90° discrete rotation (lerp-smoothed), 4 isometric positions. W/S = 3 orthographic zoom levels (7/10/14), default mid. Orthographic projection at 35.264° elevation. |

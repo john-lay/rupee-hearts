@@ -64,6 +64,12 @@ const _SW = [32, 56, 80, 56]
 # NW walk: right foot, feet together, left foot, feet together
 const _NW = [128, 152, 176, 152]
 
+# Raise Hands (item use) — single frame, y=52, h=32
+const _SW_RAISE_HANDS_X = 8
+const _NW_RAISE_HANDS_X = 104
+const _RAISE_HANDS_Y    = 52
+const _RAISE_HANDS_H    = 32
+
 const _CELL_ALLIED = Vector2(0,   0)
 const _CELL_ENEMY  = Vector2(344, 0)
 
@@ -75,6 +81,7 @@ var _name_label: Label  = null
 var _camera_ref: Camera = null
 
 var _anim_time: float = 0.0
+var _raise_hands_timer: float = 0.0
 
 
 func _ready() -> void:
@@ -124,20 +131,32 @@ func _get_sprite_params() -> Array:
 		_: return [_SW, false]  # SW on screen
 
 
+func play_raise_hands(duration: float) -> void:
+	_raise_hands_timer = duration
+
+
 func _update_sprite() -> void:
 	if not _sprite:
 		return
-	var params  = _get_sprite_params()
+	var params = _get_sprite_params()
+	var flip   = params[1]
+	var cell   = _CELL_ALLIED if team == Team.PLAYER else _CELL_ENEMY
+	_sprite.flip_h = flip
+
+	if _raise_hands_timer > 0.0:
+		var x = _SW_RAISE_HANDS_X if params[0][0] == _SW[0] else _NW_RAISE_HANDS_X
+		_sprite.region_rect = Rect2(cell.x + x, _RAISE_HANDS_Y, 16, _RAISE_HANDS_H)
+		return
+
 	var offsets = params[0]
-	var flip    = params[1]
 	var frame   = int(_anim_time * _ANIM_FPS) % 4
-	var cell    = _CELL_ALLIED if team == Team.PLAYER else _CELL_ENEMY
-	_sprite.flip_h      = flip
 	_sprite.region_rect = Rect2(cell.x + offsets[frame], cell.y + _FRAME_Y, _FRAME_W, _FRAME_H)
 
 
 func _process(delta: float) -> void:
 	_anim_time += delta
+	if _raise_hands_timer > 0.0:
+		_raise_hands_timer = max(0.0, _raise_hands_timer - delta)
 
 	if _is_walking:
 		_walk_t = min(_walk_t + delta * WALK_SPEED, 1.0)
@@ -219,6 +238,13 @@ func is_alive() -> bool:
 func take_damage(amount: int) -> void:
 	hp = int(max(0, hp - amount))
 	_update_hp_bar()
+
+
+func heal(amount: int) -> int:
+	var actual := int(min(amount, max_hp - hp))
+	hp = int(min(max_hp, hp + amount))
+	_update_hp_bar()
+	return actual
 
 
 func set_alive(val: bool) -> void:
