@@ -29,8 +29,10 @@ func setup(battle_manager) -> void:
 	_battle_manager.connect("state_changed", self, "_on_state_changed")
 
 
-# Must match BattleManager.State.SELECT_ACTION
-const _SELECT_ACTION = 3
+# Must match BattleManager.State values
+const _SELECT_ACTION      = 3
+const _SELECT_MOVE_TARGET = 4
+const _SELECT_ITEM_TARGET = 13
 
 func _on_state_changed(new_state: int) -> void:
 	if new_state == _SELECT_ACTION:
@@ -40,9 +42,23 @@ func _on_state_changed(new_state: int) -> void:
 		btn_item.disabled   = unit.has_acted or _battle_manager.item_stock <= 0
 		btn_item.text       = "Item"
 		_show_main_buttons()
+		_set_all_buttons_visible(true)
+		show()
+	elif new_state == _SELECT_MOVE_TARGET or new_state == _SELECT_ITEM_TARGET:
+		_show_main_buttons()
+		_set_all_buttons_visible(false)
+		btn_cancel.show()
 		show()
 	else:
 		hide()
+
+
+func _set_all_buttons_visible(visible: bool) -> void:
+	btn_move.visible   = visible
+	btn_attack.visible = visible
+	btn_item.visible   = visible
+	btn_wait.visible   = visible
+	btn_cancel.visible = visible
 
 
 func _show_main_buttons() -> void:
@@ -59,7 +75,12 @@ func _show_item_sub_menu() -> void:
 func _on_move()   -> void: _battle_manager.player_select_move()
 func _on_attack() -> void: _battle_manager.player_select_attack()
 func _on_wait()   -> void: _battle_manager.player_wait()
-func _on_cancel() -> void: _battle_manager.player_cancel_turn()
+func _on_cancel() -> void:
+	var s: int = _battle_manager.state
+	if s == _SELECT_MOVE_TARGET or s == _SELECT_ITEM_TARGET:
+		_battle_manager.player_cancel_targeting()
+	else:
+		_battle_manager.player_cancel_turn()
 
 func _on_open_item_menu() -> void:
 	_show_item_sub_menu()

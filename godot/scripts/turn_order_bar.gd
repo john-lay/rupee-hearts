@@ -6,7 +6,8 @@ const PORTRAIT_W    = 24   # 0.5× integer scale of the 48px source
 const PORTRAIT_H    = 32   # 0.5× integer scale of the 64px source
 const SHEET_PATH    = "res://assets/sprites/soldier.png"
 
-var _turn_manager = null
+var _turn_manager   = null
+var _battle_manager = null
 var _portrait_ally:  ImageTexture = null
 var _portrait_enemy: ImageTexture = null
 var _footer: VBoxContainer = null
@@ -29,8 +30,9 @@ func add_to_footer(node: Control) -> void:
 	_footer.add_child(node)
 
 
-func setup(turn_manager) -> void:
-	_turn_manager = turn_manager
+func setup(turn_manager, battle_manager = null) -> void:
+	_turn_manager   = turn_manager
+	_battle_manager = battle_manager
 
 
 func refresh(active_unit = null) -> void:
@@ -66,6 +68,10 @@ func _add_card(unit, is_active: bool) -> void:
 	card_style.content_margin_bottom = 5
 	card.add_stylebox_override("panel", card_style)
 	card.rect_min_size = Vector2(CARD_WIDTH, 0)
+	if _battle_manager:
+		card.mouse_filter = Control.MOUSE_FILTER_STOP
+		card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+		card.connect("gui_input", self, "_on_card_input", [unit])
 	add_child(card)
 
 	# Row
@@ -120,3 +126,8 @@ func _add_card(unit, is_active: bool) -> void:
 	hp_bar.add_stylebox_override("bg", bg_style)
 
 	vbox.add_child(hp_bar)
+
+
+func _on_card_input(event: InputEvent, unit) -> void:
+	if event is InputEventMouseButton and event.pressed and event.button_index == BUTTON_LEFT:
+		_battle_manager.inspect_unit(unit)

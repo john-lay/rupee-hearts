@@ -29,18 +29,20 @@ Main (Spatial)
 │   └── Camera
 └── UI (CanvasLayer)
     ├── ActionMenu
-    ├── UnitStatsPanel
-    └── TurnOrderBar
+    ├── TurnOrderBar
+    ├── UnitStatsPanelLeft   ← blue/red stats card, bottom-left; slides in from left
+    └── UnitStatsPanelRight  ← blue/red stats card, bottom-right; slides in from right
 ```
 
 ## Scripts & Responsibilities
 
 | Script | Responsibility |
 |--------|---------------|
-| `battle_manager.gd` | Top-level state machine; coordinates all other systems. Manages item stock (`item_stock`, `ITEM_HEAL_AMOUNT`), spawns floating damage/heal numbers, resolves combat with directional and height multipliers. |
-| `turn_manager.gd` | CT tick loop; determines whose turn it is |
+| `battle_manager.gd` | Top-level state machine; coordinates all other systems. Manages item stock, spawns floating numbers, resolves combat with directional and height multipliers. `inspect_unit(unit)` flashes the sprite and slides in the appropriate stats panel; called by world clicks and turn order bar clicks. |
+| `unit_stats_panel.gd` | Reusable bottom-corner panel. `show_unit(unit)` slides in (or cross-slides) showing portrait, HP, and full stat grid in blue (ally) or red (enemy). `sprite_sheet` is cropped for the portrait. |
+| `turn_manager.gd` | CT tick loop; determines whose turn it is. `TurnOrderBar` cards are clickable — clicking calls `battle_manager.inspect_unit()`. |
 | `map_data.gd` | Grid queries: is cell walkable, who occupies it, cell height |
-| `unit.gd` | Stats (HP, ATK, DEF, SPD, ACC, EVA, move/attack range, `jump`, `flying`), CT value, grid position, facing direction, tile-by-tile walk animation (`walk_path()` / `move_finished` signal). Buff/debuff slots: `accuracy_mod`, `evasion_mod`. `heal(amount)` heals HP and refreshes bar. `play_raise_hands(duration)` plays the raise-hands sprite frame. |
+| `unit.gd` | Stats (HP, ATK, DEF, SPD, ACC, EVA, move/attack range, `jump`, `flying`), CT value, grid position, facing. `export var sprite_sheet` for per-character sheets. `flash()` briefly brightens the sprite as a selection indicator. `heal(amount)` and `play_raise_hands(duration)` for item use. |
 | `movement.gd` | BFS flood fill for reachable cells; A* pathfinding. Tile highlights: blue = move, red = attack, green = item targets. |
 | `ai_controller.gd` | Greedy enemy logic: close on nearest player unit, attack if in range; async — uses `_after_ai_move` callback after walk animation completes |
 | `camera_controller.gd` | A/D rotate 90° (lerp-smoothed), W/S zoom (3 levels), orthographic isometric projection. |
@@ -57,10 +59,12 @@ INIT
 
 SELECT_ACTION              ← show menu: Move / Attack / Item / Wait / Cancel
         ├── Move   → SELECT_MOVE_TARGET   → MOVE_UNIT → SELECT_ACTION
-        ├── Attack → SELECT_ATTACK_TARGET → RESOLVE_COMBAT → SELECT_ACTION
+        ├── Attack → SELECT_ATTACK_TARGET → CONFIRM_ATTACK → RESOLVE_COMBAT → SELECT_ACTION
         ├── Item   → (item sub-list) → SELECT_ITEM_TARGET → SELECT_ACTION
         ├── Wait   → SELECT_FACING → END_TURN
         └── Cancel → restore snapshot → SELECT_ACTION
+
+CONFIRM_ATTACK             ← shows both unit stat panels + HIT%/DMG preview + Confirm/Cancel
 
 SELECT_FACING              ← NW/NE/SW/SE chooser overlay; triggers only after Wait
 
@@ -99,3 +103,12 @@ CHARIOT_SELECT             ← branching timeline panel; rewind to any prior sna
 7. Combat resolution (damage formula, death)
 8. `ai_controller.gd`
 9. UI (ActionMenu, StatsPanel, TurnOrderBar)
+
+## Next Steps
+
+- ~~**Unit stats panel**~~ — done. Blue/red panel slides in from screen edge; portrait, HP, full stats. Clickable from world and turn order bar.
+- **Victory/defeat screen** — battle ends when all units on one side die but there is no end-state UI. Add a simple "Victory" / "Defeat" overlay to complete the game loop.
+- **More map variety** — the 6×6 map with two elevated tiles is minimal. A larger or more interesting layout (greater height variation, chokepoints) would make movement and the jump stat more meaningful.
+- **More item types** — the sub-menu scaffolding supports multiple entries. A damage item (e.g. bomb, red targeting) or a buff item would make the item slot genuinely tactical rather than just healing.
+- **Status effects** — `accuracy_mod` and `evasion_mod` buff/debuff slots exist on units but nothing applies them. A simple Slow or Blind effect would add tactical depth without major new systems.
+- **AI item use** — enemies only move and attack. Giving them access to items (or their own pool) would make combat more interesting and stress-test the item system.

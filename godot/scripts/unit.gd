@@ -51,8 +51,8 @@ var _walk_to:         Vector3 = Vector3()
 var _walk_t:          float   = 0.0
 var _map_data                 = null  # cached from place_on_grid
 
-# --- Sprite sheet constants ---
-const _SHEET_PATH = "res://assets/sprites/soldier.png"
+# --- Sprite sheet ---
+export var sprite_sheet: String = "res://assets/sprites/soldier.png"
 const _FRAME_W    = 16
 const _FRAME_H    = 40
 const _FRAME_Y    = 0
@@ -82,6 +82,8 @@ var _camera_ref: Camera = null
 
 var _anim_time: float = 0.0
 var _raise_hands_timer: float = 0.0
+var _flash_timer: float = 0.0
+const _FLASH_DURATION: float = 0.35
 
 
 func _ready() -> void:
@@ -93,7 +95,7 @@ func _ready() -> void:
 func _create_sprite() -> void:
 	_sprite = Sprite3D.new()
 	var img := Image.new()
-	img.load(_SHEET_PATH)
+	img.load(sprite_sheet)
 	var tex := ImageTexture.new()
 	tex.create_from_image(img, 0)  # nearest-neighbour, no mipmaps
 	_sprite.texture        = tex
@@ -135,6 +137,10 @@ func play_raise_hands(duration: float) -> void:
 	_raise_hands_timer = duration
 
 
+func flash() -> void:
+	_flash_timer = _FLASH_DURATION
+
+
 func _update_sprite() -> void:
 	if not _sprite:
 		return
@@ -157,6 +163,13 @@ func _process(delta: float) -> void:
 	_anim_time += delta
 	if _raise_hands_timer > 0.0:
 		_raise_hands_timer = max(0.0, _raise_hands_timer - delta)
+
+	if _flash_timer > 0.0:
+		_flash_timer = max(0.0, _flash_timer - delta)
+		var t = _flash_timer / _FLASH_DURATION
+		_sprite.modulate = Color(1.0 + t, 1.0 + t, 1.0 + t, 1.0)
+	else:
+		_sprite.modulate = Color(1.0, 1.0, 1.0, 1.0)
 
 	if _is_walking:
 		_walk_t = min(_walk_t + delta * WALK_SPEED, 1.0)

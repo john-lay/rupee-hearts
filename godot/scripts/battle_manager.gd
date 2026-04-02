@@ -15,6 +15,7 @@ enum State {
 	CHARIOT_SELECT,
 	SELECT_FACING,
 	SELECT_ITEM_TARGET,
+	CONFIRM_ATTACK,
 }
 
 # Direction constants — must match unit.gd
@@ -67,8 +68,12 @@ var _facing_next_state: int = State.SELECT_ACTION
 var _post_move_callback = null  # FuncRef or null, called after walk animation finishes
 var _portrait_ally:  ImageTexture = null
 var _portrait_enemy: ImageTexture = null
-var _hit_chance_label: Label = null
 var _weather: Node = null
+
+var _pending_target = null   # unit selected for attack, waiting for confirm
+var _confirm_bar: Control = null
+var _stats_left  = null
+var _stats_right = null
 
 
 func _process(delta: float) -> void:
@@ -78,15 +83,6 @@ func _process(delta: float) -> void:
 		_active_indicator.material_override.set_shader_param(
 			"border_color", _INDICATOR_COLOR.linear_interpolate(_INDICATOR_COLOR.lightened(0.5), t)
 		)
-
-	if state == State.SELECT_ATTACK_TARGET and _hit_chance_label:
-		var cell = _get_cell_under_mouse()
-		var target = map_data.get_unit_at(int(cell.x), int(cell.y))
-		if target and cell in _attack_targets:
-			var pct = _calc_hit_chance(active_unit, target)
-			_hit_chance_label.text = "Hit: %d%%" % pct
-		else:
-			_hit_chance_label.text = "Hit: --"
 
 # Spawn positions from the prototype map layout
 const PLAYER_STARTS = [Vector2(1, 4), Vector2(4, 4)]
@@ -102,7 +98,9 @@ func _ready() -> void:
 	_spawn_units()
 	turn_manager.connect("turn_ready", self, "_on_turn_ready")
 	get_node("../UI/ActionMenu").setup(self)
-	_turn_order_bar.setup(turn_manager)
+	_turn_order_bar.setup(turn_manager, self)
+	_stats_left  = get_node("../UI/UnitStatsPanelLeft")
+	_stats_right = get_node("../UI/UnitStatsPanelRight")
 	# Defer so all sibling nodes (AIController, Movement) finish their _ready()
 	# before the CT loop can fire an enemy turn.
 	call_deferred("_start_battle")
@@ -196,16 +194,20 @@ func _on_sprite_debug_pressed() -> void:
 # --- State machine ---
 
 func _change_state(new_state: int) -> void:
-	if new_state != State.SELECT_ATTACK_TARGET:
-		_hide_hit_chance_label()
 	state = new_state
 	emit_signal("state_changed", new_state)
 	match state:
 		State.TICK_CT:
+			_stats_left.hide()
+			_stats_right.hide()
 			turn_manager.tick_until_next()
 		State.SELECT_ACTION:
 			_movement.clear_highlights()
 			_update_active_indicator()
+			_hide_confirm_bar()
+			if active_unit != null:
+				_stats_left.show_unit(active_unit)
+			_stats_right.hide()
 		State.SELECT_MOVE_TARGET:
 			_reachable_cells = _movement.get_reachable_cells(active_unit)
 			_movement.show_move_highlights(_reachable_cells)
@@ -214,24 +216,37 @@ func _change_state(new_state: int) -> void:
 			_item_targets = _get_item_targets(active_unit)
 			_movement.show_item_highlights(_item_targets)
 		State.SELECT_ATTACK_TARGET:
+			_hide_confirm_bar()
+			_stats_right.hide()
 			_attack_targets = _movement.get_attack_targets(active_unit)
 			if _attack_targets.empty():
 				_change_state(State.SELECT_ACTION)
 				return
 			_movement.show_attack_highlights(_attack_targets)
-			_show_hit_chance_label()
+		State.CONFIRM_ATTACK:
+			_movement.clear_highlights()
+			_active_indicator.visible = false
+			_stats_left.show_unit(active_unit)
+			_stats_right.show_unit(_pending_target)
+			_show_confirm_bar()
 		State.MOVE_UNIT:
 			_movement.clear_highlights()
 			_active_indicator.visible = false
+			_stats_left.hide()
+			_stats_right.hide()
 		State.SELECT_FACING:
 			_movement.clear_highlights()
 			_open_facing_chooser()
 		State.END_TURN:
 			_movement.clear_highlights()
+			_stats_left.hide()
+			_stats_right.hide()
 			active_unit = null
 			_update_active_indicator()
 			_change_state(State.TICK_CT)
 		State.ENEMY_THINK:
+			_stats_left.hide()
+			_stats_right.hide()
 			$"../AIController".take_turn(active_unit, map_data, self)
 		State.CHARIOT_SELECT:
 			_movement.clear_highlights()
@@ -275,6 +290,19 @@ func has_attack_targets() -> bool:
 	if active_unit == null:
 		return false
 	return not _movement.get_attack_targets(active_unit).empty()
+
+
+func inspect_unit(unit) -> void:
+	unit.flash()
+	if unit.team == unit.Team.PLAYER:
+		_stats_left.show_unit(unit)
+	else:
+		_stats_right.show_unit(unit)
+
+
+func player_cancel_targeting() -> void:
+	if state == State.SELECT_MOVE_TARGET or state == State.SELECT_ITEM_TARGET:
+		_change_state(State.SELECT_ACTION)
 
 
 func player_cancel_turn() -> void:
@@ -352,6 +380,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 
 	# Cancel targeting with right-click or Escape
+	if state == State.CONFIRM_ATTACK:
+		if (event is InputEventKey and event.pressed and event.scancode == KEY_ESCAPE) or \
+				(event is InputEventMouseButton and event.pressed and event.button_index == BUTTON_RIGHT):
+			_pending_target = null
+			_change_state(State.SELECT_ATTACK_TARGET)
+			return
+
 	if state == State.SELECT_MOVE_TARGET or state == State.SELECT_ATTACK_TARGET or state == State.SELECT_ITEM_TARGET:
 		if (event is InputEventKey and event.pressed and event.scancode == KEY_ESCAPE) or \
 				(event is InputEventMouseButton and event.pressed and event.button_index == BUTTON_RIGHT):
@@ -366,12 +401,17 @@ func _unhandled_input(event: InputEvent) -> void:
 	var z = int(cell.y)
 
 	match state:
+		State.SELECT_ACTION:
+			var unit = map_data.get_unit_at(x, z)
+			if unit != null:
+				inspect_unit(unit)
 		State.SELECT_MOVE_TARGET:
 			if cell in _reachable_cells:
 				confirm_move(x, z)
 		State.SELECT_ATTACK_TARGET:
 			if cell in _attack_targets:
-				confirm_attack(map_data.get_unit_at(x, z))
+				_pending_target = map_data.get_unit_at(x, z)
+				_change_state(State.CONFIRM_ATTACK)
 		State.SELECT_ITEM_TARGET:
 			if cell in _item_targets:
 				confirm_item_use(map_data.get_unit_at(x, z))
@@ -566,28 +606,68 @@ func _on_facing_chosen(screen_dir: int) -> void:
 	_change_state(_facing_next_state)
 
 
-func _show_hit_chance_label() -> void:
-	if _hit_chance_label and is_instance_valid(_hit_chance_label):
-		return
-	_hit_chance_label = Label.new()
-	_hit_chance_label.text = "Hit: --"
-	_hit_chance_label.anchor_bottom = 1.0
-	_hit_chance_label.anchor_top    = 1.0
-	_hit_chance_label.anchor_left   = 0.5
-	_hit_chance_label.anchor_right  = 0.5
-	_hit_chance_label.margin_top    = -56.0
-	_hit_chance_label.margin_bottom = -36.0
-	_hit_chance_label.margin_left   = -40.0
-	_hit_chance_label.margin_right  = 40.0
-	_hit_chance_label.align         = Label.ALIGN_CENTER
-	_hit_chance_label.add_color_override("font_color", Color(1.0, 1.0, 0.5))
-	get_node("../UI").add_child(_hit_chance_label)
+func _show_confirm_bar() -> void:
+	_hide_confirm_bar()
+
+	var hit_chance: int = _calc_hit_chance(active_unit, _pending_target)
+	var dir_mult: float = _get_attack_dir_mult(active_unit, _pending_target)
+	var height_diff: int = _effective_height(active_unit) - _effective_height(_pending_target)
+	var est_dmg: int = max(1, int(active_unit.attack * dir_mult) - _pending_target.defense)
+	if height_diff > 0:
+		est_dmg = int(est_dmg * 1.15)
+	elif height_diff < 0:
+		est_dmg = int(est_dmg * 0.90)
+
+	_confirm_bar = VBoxContainer.new()
+	_confirm_bar.anchor_left   = 0.5
+	_confirm_bar.anchor_right  = 0.5
+	_confirm_bar.anchor_top    = 1.0
+	_confirm_bar.anchor_bottom = 1.0
+	_confirm_bar.margin_left   = -100.0
+	_confirm_bar.margin_right  = 100.0
+	_confirm_bar.margin_top    = -88.0
+	_confirm_bar.margin_bottom = -8.0
+	_confirm_bar.add_constant_override("separation", 6)
+
+	var info_lbl := Label.new()
+	info_lbl.text  = "HIT %d%%   ·   ~%d DMG" % [hit_chance, est_dmg]
+	info_lbl.align = Label.ALIGN_CENTER
+	info_lbl.add_color_override("font_color", Color(1.0, 1.0, 0.5))
+	_confirm_bar.add_child(info_lbl)
+
+	var btns := HBoxContainer.new()
+	btns.alignment = BoxContainer.ALIGN_CENTER
+	btns.add_constant_override("separation", 12)
+	_confirm_bar.add_child(btns)
+
+	var confirm_btn := Button.new()
+	confirm_btn.text = "Confirm"
+	confirm_btn.connect("pressed", self, "_on_attack_confirmed")
+	btns.add_child(confirm_btn)
+
+	var cancel_btn := Button.new()
+	cancel_btn.text = "Cancel"
+	cancel_btn.connect("pressed", self, "_on_attack_cancelled")
+	btns.add_child(cancel_btn)
+
+	get_node("../UI").add_child(_confirm_bar)
 
 
-func _hide_hit_chance_label() -> void:
-	if _hit_chance_label and is_instance_valid(_hit_chance_label):
-		_hit_chance_label.queue_free()
-	_hit_chance_label = null
+func _hide_confirm_bar() -> void:
+	if _confirm_bar and is_instance_valid(_confirm_bar):
+		_confirm_bar.queue_free()
+	_confirm_bar = null
+
+
+func _on_attack_confirmed() -> void:
+	var target = _pending_target
+	_pending_target = null
+	confirm_attack(target)
+
+
+func _on_attack_cancelled() -> void:
+	_pending_target = null
+	_change_state(State.SELECT_ATTACK_TARGET)
 
 
 func _spawn_miss_label(unit) -> void:
