@@ -481,6 +481,8 @@ func confirm_item_use(target_unit) -> void:
 func _resolve_combat(attacker, defender) -> void:
 	# Auto-turn attacker to face defender before calculating direction bonus
 	attacker.facing = _direction_toward(attacker, defender.grid_x, defender.grid_z)
+	if attacker.has_method("play_attack_anim"):
+		attacker.play_attack_anim()
 
 	# Hit check
 	var hit_chance = _calc_hit_chance(attacker, defender)
@@ -777,12 +779,12 @@ func _spawn_units() -> void:
 	var UnitScript = load("res://scripts/unit.gd")
 
 	var player_configs = [
-		{name = "Knight", team = UnitScript.Team.PLAYER, hp = 28, atk = 10, def = 6, spd = 8,  move = 3, range = 1, acc = 55, eva = 5},
-		{name = "Archer", team = UnitScript.Team.PLAYER, hp = 20, atk = 9,  def = 3, spd = 12, move = 3, range = 2, acc = 60, eva = 10},
+		{name = "Knight", team = UnitScript.Team.PLAYER, hp = 28, atk = 10, def = 6, spd = 8,  move = 3, range = 1, acc = 55, eva = 5,  sheet = "res://assets/sprites/krel.png",    simple = true},
+		{name = "Archer", team = UnitScript.Team.PLAYER, hp = 20, atk = 9,  def = 3, spd = 12, move = 3, range = 2, acc = 60, eva = 10, sheet = "res://assets/sprites/soldier.png", simple = false},
 	]
 	var enemy_configs = [
-		{name = "Goblin",  team = UnitScript.Team.ENEMY, hp = 16, atk = 7, def = 2, spd = 10, move = 3, range = 1, acc = 50, eva = 0},
-		{name = "Goblin2", team = UnitScript.Team.ENEMY, hp = 16, atk = 7, def = 2, spd = 10, move = 3, range = 1, acc = 50, eva = 0},
+		{name = "Goblin",  team = UnitScript.Team.ENEMY, hp = 16, atk = 7, def = 2, spd = 10, move = 3, range = 1, acc = 50, eva = 0, sheet = "res://assets/sprites/soldier.png", simple = false},
+		{name = "Goblin2", team = UnitScript.Team.ENEMY, hp = 16, atk = 7, def = 2, spd = 10, move = 3, range = 1, acc = 50, eva = 0, sheet = "res://assets/sprites/soldier.png", simple = false},
 	]
 
 	for i in player_configs.size():
@@ -1032,6 +1034,10 @@ func _spawn_unit(scene, cfg: Dictionary, grid_pos: Vector2) -> void:
 	unit.attack_range = cfg.range
 	unit.accuracy = cfg.acc
 	unit.evasion = cfg.eva
+	if cfg.has("sheet"):
+		unit.sprite_sheet = cfg.sheet
+	if cfg.has("simple"):
+		unit.simple_sheet = cfg.simple
 	units_node.add_child(unit)
 	unit.place_on_grid(int(grid_pos.x), int(grid_pos.y), map_data)
 	map_data.set_unit_at(int(grid_pos.x), int(grid_pos.y), unit)

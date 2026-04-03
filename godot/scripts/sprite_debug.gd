@@ -1,79 +1,106 @@
 extends Control
 
-const SHEET_PATH = "res://assets/sprites/soldier.png"
-const SCALE      = 5   # display magnification (5× = 80px for a 16px-wide frame)
+const CELL  = 32   # pixels per grid cell
+const SCALE = 2    # display magnification (2× on 64px frames = 128px on screen)
 
-# Y offsets and heights are pixel positions within one macro cell (344×352, 8px tiles).
-# Allied macro cell sits at sheet position (0, 0) so these are also sheet-absolute for allied.
-#
-# Each entry:  name, y, h, sw [[x,w],...], nw [[x,w],...], fps (0 = static)
-const STATES = [
-	# ── Section 1: Walk shadowed (4-row, y=8, h=32) ────────────────────────────
-	{"name": "Walk (shadowed)",      "y":  4, "h": 32,
-		"sw": [[32,16],[56,16],[80,16],[56,16]],  "nw": [[128,16],[152,16],[176,16],[152,16]], "fps": 2.0},
-	{"name": "Defending (shadowed)", "y":  4, "h": 32,
-		"sw": [[200,16]],                         "nw": [[224,16]],                            "fps": 0.0},
-
-	# ── Section 2: Misc unshadowed (5-row, y=48, h=40) ─────────────────────────
-	{"name": "Walk",                 "y": 52, "h": 32,
-		"sw": [[32,16],[56,16],[80,16],[56,16]],  "nw": [[128,16],[152,16],[176,16],[152,16]], "fps": 2.0},
-	{"name": "Raise Hands",          "y": 52, "h": 32,
-		"sw": [[8,16]],                           "nw": [[104,16]],                            "fps": 0.0},
-	{"name": "Defending",            "y": 52, "h": 32,
-		"sw": [[200,16]],                         "nw": [[224,16]],                            "fps": 0.0},
-	{"name": "Victory",              "y": 52, "h": 32,
-		"sw": [[248,16]],                 "nw": [[272,16]],                   "fps": 0.0},
-	{"name": "Afflicted",            "y": 48, "h": 40,
-		"sw": [[296,16]],                 "nw": [[320,16]],                   "fps": 0.0},
-
-	# ── Section 3: Shallow water walk (4-row, y=96, h=32) ──────────────────────
-	{"name": "Walk (shallow)",          "y": 96, "h": 32,
-		"sw": [[32,16],[56,16],[80,16],[56,16]],  "nw": [[128,16],[152,16],[176,16],[152,16]], "fps": 2.0},
-	{"name": "Raise Hands (shallow)",   "y": 96, "h": 32,
-		"sw": [[8,16]],                           "nw": [[104,16]],                            "fps": 0.0},
-	{"name": "Defending (shallow)",     "y": 96, "h": 32,
-		"sw": [[200,16]],                         "nw": [[224,16]],                            "fps": 0.0},
-
-	# ── Section 4: Water / fallen (4-row, y=184, h=32) ─────────────────────────
-	{"name": "Afflicted (shallow)",  "y": 178, "h": 32,
-		"sw": [[8,16]],                   "nw": [[32,16]],                    "fps": 0.0},
-	{"name": "Walk (deep water)",    "y": 176, "h": 32,
-		"sw": [[56,16],[80,16]],          "nw": [[104,16],[128,16]],          "fps": 2.0},
-	{"name": "Fallen (shallow)",     "y": 184, "h": 32,
-		"sw": [[152,16],[200,16]],        "nw": [[176,16],[224,16]],          "fps": 2.0},
-
-	# ── Section 5: Damage / critical / fallen (4-row, y=224, h=32) ─────────────
-	{"name": "Taking Damage",        "y": 212, "h": 32,
-		"sw": [[8,16]],                   "nw": [[32,16]],                    "fps": 0.0},
-	{"name": "Critical (shadow)",    "y": 214, "h": 32,
-		"sw": [[56,16]],                  "nw": [[80,16]],                    "fps": 0.0},
-	{"name": "Fallen (shadowed)",    "y": 218, "h": 32,
-		"sw": [[104,16]],                 "nw": [[128,16]],                   "fps": 0.0},
-
-	# ── Section 6: Attack (4-row, y=272, h=32) — wind-up & strike are 24px wide ─
-	{"name": "Attack",               "y": 262, "h": 32,
-		"sw": [[12,24],[42,24],[74,24]],  "nw": [[116,24],[146,24],[178,24]], "fps": 2.0},
-
-	# ── Section 7: Weary / misc (y=311, h=32) ───────────────────────────────────
-	{"name": "Weary",                "y": 309, "h": 32,
-		"sw": [[8,16],[32,16],[8,16],[56,16]],    "nw": [[80,16],[104,16],[80,16],[128,16]], "fps": 2.0},
-	{"name": "Defending (weary)",    "y": 309, "h": 32,
-		"sw": [[152,16]],                 "nw": [[176,16]],                   "fps": 0.0},
-	{"name": "Offering",             "y": 309, "h": 32,
-		"sw": [[200,16]],                 "nw": [[224,16]],                   "fps": 0.0},
+const CHARACTERS = [
+	{"name": "Krel",   "path": "res://assets/sprites/krel.png"},
+	{"name": "Dunar",  "path": "res://assets/sprites/dunar.png"},
+	{"name": "Seriph", "path": "res://assets/sprites/seriph.png"},
+	{"name": "Kori",   "path": "res://assets/sprites/kori.png"},
 ]
 
-# Layout constants
-const PANEL_W  = 220.0
-const SW_CX    = 370.0   # SW sprite screen-centre X
-const NW_CX    = 660.0   # NW sprite screen-centre X
-const SPRITE_CY = 260.0  # sprite centre Y
+# Coordinate reference (all values in pixels, derived from sprites-simple.md):
+#
+#   Sheet: 1024×1024,  cell: 32×32
+#
+#   Row groups (y = row_index × 32):
+#     SW walk + attack  y=32   h=160   rows 2-6
+#     NW walk + attack  y=192  h=160   rows 7-11
+#     Defensive/victory y=352  h=160   rows 12-16  (SW+NW in same band, diff x)
+#     Weary SW+flying   y=512  h=160   rows 17-21
+#     Weary NW+flying   y=672  h=160   rows 22-26
+#     Weak/defeated     y=864  h=128   rows 28-31  (SW+NW in same band, diff x)
+#     Portrait          y=0    h=288   top-right x=800 w=224
+#
+#   x offsets within walk+attack band:
+#     Raise Hands  x=32  w=64
+#     Walk L-foot  x=128 w=64
+#     Walk together x=224 w=64
+#     Walk R-foot  x=320 w=64
+#     Attack prep  x=416 w=96
+#     Attack strike x=544 w=96
+#     Attack follow x=672 w=96
+#
+#   x offsets in defensive/victory band (same for both rows):
+#     Defensive SW x=32  NW x=128  Victory SW x=224  NW x=320   all w=64
+#
+#   x offsets in weary band:
+#     Weary 1 x=32  Weary 2 x=128  Weary 3 x=224   all w=64
+#     Flying 1 x=448  Flying 2 x=608  Flying 3 x=768  all w=160  (seriph only)
+#
+#   x offsets in weak/defeated band:
+#     Weak SW x=32  Weak NW x=128  Defeated SW x=224  Defeated NW x=320  all w=64
+
+# State format: name, y_sw, y_nw, h, sw [[x,w],...], nw [[x,w],...], fps
+# y_sw == y_nw when SW and NW share the same row band (diff x).
+const STATES = [
+	{"name": "Walk",
+		"y_sw": 32,  "y_nw": 192, "h": 160,
+		"sw": [[128,64],[224,64],[320,64],[224,64]],
+		"nw": [[128,64],[224,64],[320,64],[224,64]], "fps": 2.0},
+
+	{"name": "Raise Hands",
+		"y_sw": 32,  "y_nw": 192, "h": 160,
+		"sw": [[32,64]], "nw": [[32,64]], "fps": 0.0},
+
+	{"name": "Attack",
+		"y_sw": 32,  "y_nw": 192, "h": 160,
+		"sw": [[416,96],[544,96],[672,96]],
+		"nw": [[416,96],[544,96],[672,96]], "fps": 2.0},
+
+	{"name": "Defensive",
+		"y_sw": 352, "y_nw": 352, "h": 160,
+		"sw": [[32,64]], "nw": [[128,64]], "fps": 0.0},
+
+	{"name": "Victory",
+		"y_sw": 352, "y_nw": 352, "h": 160,
+		"sw": [[224,64]], "nw": [[320,64]], "fps": 0.0},
+
+	{"name": "Weary",
+		"y_sw": 512, "y_nw": 672, "h": 160,
+		"sw": [[32,64],[128,64],[224,64],[128,64]],
+		"nw": [[32,64],[128,64],[224,64],[128,64]], "fps": 2.0},
+
+	{"name": "Flying (Seriph only)",
+		"y_sw": 512, "y_nw": 672, "h": 160,
+		"sw": [[448,160],[608,160],[768,160]],
+		"nw": [[448,160],[608,160],[768,160]], "fps": 2.0},
+
+	{"name": "Weak (one knee)",
+		"y_sw": 864, "y_nw": 864, "h": 128,
+		"sw": [[32,64]], "nw": [[128,64]], "fps": 0.0},
+
+	{"name": "Defeated",
+		"y_sw": 864, "y_nw": 864, "h": 128,
+		"sw": [[224,64]], "nw": [[320,64]], "fps": 0.0},
+
+	{"name": "Portrait",
+		"y_sw": 0,   "y_nw": 0,   "h": 288,
+		"sw": [[800,224]], "nw": [], "fps": 0.0},
+]
+
+const PANEL_W   = 220.0
+const SW_CX     = 450.0
+const NW_CX     = 800.0
+const SPRITE_CY = 330.0
 
 var _tex: ImageTexture
-var _current_state: int  = 0
-var _current_frame: int  = 0
+var _current_char:  int = 0
+var _current_state: int = 0
+var _current_frame: int = 0
 var _anim_time:     float = 0.0
-var _is_animating:  bool  = false
+var _is_animating:  bool = false
 
 var _label_state_name: Label
 var _label_frame_info: Label
@@ -81,21 +108,33 @@ var _label_sw_coords:  Label
 var _label_nw_coords:  Label
 var _btn_prev: Button
 var _btn_next: Button
-var _state_buttons = []
+var _state_buttons:   Array = []
+var _char_buttons:    Array = []
 var _highlighted_btn: Button = null
 
 
 func _ready() -> void:
-	_load_texture()
 	_build_ui()
+	_load_char(0)
 	_show_state(0)
 
 
-func _load_texture() -> void:
+func _load_char(idx: int) -> void:
+	_current_char = idx
+	var path = CHARACTERS[idx].path
 	var img = Image.new()
-	img.load(SHEET_PATH)
+	var err = img.load(path)
+	if err != OK:
+		_tex = null
+		return
 	_tex = ImageTexture.new()
-	_tex.create_from_image(img, 0)  # flags=0: no mipmaps, no filter → nearest-neighbour
+	_tex.create_from_image(img, 0)  # nearest-neighbour
+
+	# Update character button highlights
+	for i in _char_buttons.size():
+		_char_buttons[i].add_color_override("font_color",
+			Color(1, 0.8, 0.2) if i == idx else Color(1, 1, 1))
+	update()
 
 
 func _process(delta: float) -> void:
@@ -103,36 +142,41 @@ func _process(delta: float) -> void:
 		return
 	var state = STATES[_current_state]
 	_anim_time += delta
-	_current_frame = int(_anim_time * state.fps) % state.sw.size()
+	var num_frames = max(state.sw.size(), state.nw.size())
+	_current_frame = int(_anim_time * state.fps) % int(max(num_frames, 1))
 	_refresh_info()
 	update()
 
 
 func _draw() -> void:
-	if not _tex:
-		return
-	# Dark background for sprite area
 	draw_rect(Rect2(PANEL_W, 0.0, rect_size.x - PANEL_W, rect_size.y), Color(0.15, 0.15, 0.15))
+	if not _tex:
+		var msg := Label.new()  # Can't draw text in _draw; handled via label below
+		return
 
-	var state  = STATES[_current_state]
-	var frame  = min(_current_frame, state.sw.size() - 1)
+	var state = STATES[_current_state]
+	var sw_frames = state.sw.size()
+	var nw_frames = state.nw.size()
+	var frame = _current_frame
 
 	# SW sprite
-	if state.sw.size() > 0:
-		var f    = state.sw[min(frame, state.sw.size() - 1)]
-		var fw   = f[1]
-		var fh   = state.h
-		var dest = Rect2(SW_CX - fw * SCALE * 0.5, SPRITE_CY - fh * SCALE * 0.5, fw * SCALE, fh * SCALE)
-		draw_texture_rect_region(_tex, dest, Rect2(f[0], state.y, fw, fh))
-		draw_rect(dest, Color(0.4, 0.4, 0.4), false)  # frame outline
+	if sw_frames > 0:
+		var f  = state.sw[min(frame, sw_frames - 1)]
+		var fw = f[1]
+		var fh = state.h
+		var dest = Rect2(SW_CX - fw * SCALE * 0.5, SPRITE_CY - fh * SCALE * 0.5,
+			fw * SCALE, fh * SCALE)
+		draw_texture_rect_region(_tex, dest, Rect2(f[0], state.y_sw, fw, fh))
+		draw_rect(dest, Color(0.4, 0.4, 0.4), false)
 
 	# NW sprite
-	if state.nw.size() > 0:
-		var f    = state.nw[min(frame, state.nw.size() - 1)]
-		var fw   = f[1]
-		var fh   = state.h
-		var dest = Rect2(NW_CX - fw * SCALE * 0.5, SPRITE_CY - fh * SCALE * 0.5, fw * SCALE, fh * SCALE)
-		draw_texture_rect_region(_tex, dest, Rect2(f[0], state.y, fw, fh))
+	if nw_frames > 0:
+		var f  = state.nw[min(frame, nw_frames - 1)]
+		var fw = f[1]
+		var fh = state.h
+		var dest = Rect2(NW_CX - fw * SCALE * 0.5, SPRITE_CY - fh * SCALE * 0.5,
+			fw * SCALE, fh * SCALE)
+		draw_texture_rect_region(_tex, dest, Rect2(f[0], state.y_nw, fw, fh))
 		draw_rect(dest, Color(0.4, 0.4, 0.4), false)
 
 
@@ -140,7 +184,7 @@ func _build_ui() -> void:
 	anchor_right  = 1.0
 	anchor_bottom = 1.0
 
-	# ── Left panel: scrollable state list ──────────────────────────────────────
+	# ── Left panel: state list ──────────────────────────────────────────────────
 	var panel = PanelContainer.new()
 	panel.anchor_top    = 0.0
 	panel.anchor_bottom = 1.0
@@ -169,25 +213,36 @@ func _build_ui() -> void:
 		vbox.add_child(btn)
 		_state_buttons.append(btn)
 
-	# ── Right panel labels ─────────────────────────────────────────────────────
-	_label_state_name = _lbl("", PANEL_W + 20, 10, 600, 28)
+	# ── Character picker ────────────────────────────────────────────────────────
+	var char_lbl = _lbl("Character:", PANEL_W + 20, 12, 120, 20)
+	char_lbl.add_color_override("font_color", Color(0.7, 0.7, 0.7))
 
-	# Column headers
-	var h_sw = _lbl("SW", SW_CX - 20, 80, 40, 20)
+	var char_hbox = HBoxContainer.new()
+	char_hbox.rect_position = Vector2(PANEL_W + 20, 36)
+	char_hbox.add_constant_override("separation", 6)
+	add_child(char_hbox)
+
+	for i in CHARACTERS.size():
+		var btn = Button.new()
+		btn.text = CHARACTERS[i].name
+		btn.connect("pressed", self, "_on_char_btn", [i])
+		char_hbox.add_child(btn)
+		_char_buttons.append(btn)
+
+	# ── State info labels ───────────────────────────────────────────────────────
+	_label_state_name = _lbl("", PANEL_W + 20, 72, 600, 28)
+
+	var h_sw = _lbl("SW", SW_CX - 20, 110, 40, 20)
 	h_sw.align = Label.ALIGN_CENTER
-	var h_nw = _lbl("NW", NW_CX - 20, 80, 40, 20)
+	var h_nw = _lbl("NW", NW_CX - 20, 110, 40, 20)
 	h_nw.align = Label.ALIGN_CENTER
 
-	# Coord readouts
-	_label_sw_coords = _lbl("", PANEL_W + 20,  430, 300, 20)
-	_label_nw_coords = _lbl("", PANEL_W + 340, 430, 300, 20)
+	_label_sw_coords  = _lbl("", PANEL_W + 20,  500, 400, 20)
+	_label_nw_coords  = _lbl("", PANEL_W + 20,  520, 400, 20)
+	_label_frame_info = _lbl("", PANEL_W + 20,  540, 300, 20)
 
-	# Frame counter
-	_label_frame_info = _lbl("", PANEL_W + 20, 460, 300, 20)
-
-	# Frame navigation (hidden for animated / single-frame states)
 	var hbox = HBoxContainer.new()
-	hbox.rect_position = Vector2(PANEL_W + 20, 490)
+	hbox.rect_position = Vector2(PANEL_W + 20, 565)
 	add_child(hbox)
 
 	_btn_prev = Button.new()
@@ -200,13 +255,10 @@ func _build_ui() -> void:
 	_btn_next.connect("pressed", self, "_on_next_frame")
 	hbox.add_child(_btn_next)
 
-	# Back to game
 	var back = Button.new()
-	back.rect_position = Vector2(PANEL_W + 20, 550)
-	back.rect_size     = Vector2(150, 30)
-	back.text          = "Back to Game"
+	back.text = "Back to Game"
 	back.connect("pressed", self, "_on_back")
-	add_child(back)
+	hbox.add_child(back)
 
 
 func _lbl(text: String, x: float, y: float, w: float, h: float) -> Label:
@@ -235,19 +287,21 @@ func _show_state(idx: int) -> void:
 
 
 func _refresh_info() -> void:
-	var state     = STATES[_current_state]
-	var num_frames = state.sw.size()
-	var frame     = min(_current_frame, num_frames - 1)
+	var state      = STATES[_current_state]
+	var sw_frames  = state.sw.size()
+	var nw_frames  = state.nw.size()
+	var num_frames = max(sw_frames, nw_frames)
+	var frame      = min(_current_frame, num_frames - 1)
 
-	if state.sw.size() > 0:
-		var f = state.sw[min(frame, state.sw.size() - 1)]
-		_label_sw_coords.text = "SW: Rect2(%d, %d, %d, %d)" % [f[0], state.y, f[1], state.h]
+	if sw_frames > 0:
+		var f = state.sw[min(frame, sw_frames - 1)]
+		_label_sw_coords.text = "SW: Rect2(%d, %d, %d, %d)" % [f[0], state.y_sw, f[1], state.h]
 	else:
 		_label_sw_coords.text = "SW: —"
 
-	if state.nw.size() > 0:
-		var f = state.nw[min(frame, state.nw.size() - 1)]
-		_label_nw_coords.text = "NW: Rect2(%d, %d, %d, %d)" % [f[0], state.y, f[1], state.h]
+	if nw_frames > 0:
+		var f = state.nw[min(frame, nw_frames - 1)]
+		_label_nw_coords.text = "NW: Rect2(%d, %d, %d, %d)" % [f[0], state.y_nw, f[1], state.h]
 	else:
 		_label_nw_coords.text = "NW: —"
 
@@ -257,20 +311,26 @@ func _refresh_info() -> void:
 	_btn_next.visible = show_nav
 
 
+func _on_char_btn(idx: int) -> void:
+	_load_char(idx)
+
+
 func _on_state_btn(idx: int) -> void:
 	_show_state(idx)
 
 
 func _on_prev_frame() -> void:
-	var n = STATES[_current_state].sw.size()
-	_current_frame = (_current_frame - 1 + n) % n
+	var state      = STATES[_current_state]
+	var num_frames = max(state.sw.size(), state.nw.size())
+	_current_frame = (_current_frame - 1 + num_frames) % num_frames
 	_refresh_info()
 	update()
 
 
 func _on_next_frame() -> void:
-	var n = STATES[_current_state].sw.size()
-	_current_frame = (_current_frame + 1) % n
+	var state      = STATES[_current_state]
+	var num_frames = max(state.sw.size(), state.nw.size())
+	_current_frame = (_current_frame + 1) % num_frames
 	_refresh_info()
 	update()
 

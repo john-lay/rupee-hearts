@@ -42,7 +42,7 @@ Main (Spatial)
 | `unit_stats_panel.gd` | Reusable bottom-corner panel. `show_unit(unit)` slides in (or cross-slides) showing portrait, HP, and full stat grid in blue (ally) or red (enemy). `sprite_sheet` is cropped for the portrait. |
 | `turn_manager.gd` | CT tick loop; determines whose turn it is. `TurnOrderBar` cards are clickable — clicking calls `battle_manager.inspect_unit()`. |
 | `map_data.gd` | Grid queries: is cell walkable, who occupies it, cell height |
-| `unit.gd` | Stats (HP, ATK, DEF, SPD, ACC, EVA, move/attack range, `jump`, `flying`), CT value, grid position, facing. `export var sprite_sheet` for per-character sheets. `flash()` briefly brightens the sprite as a selection indicator. `heal(amount)` and `play_raise_hands(duration)` for item use. |
+| `unit.gd` | Stats (HP, ATK, DEF, SPD, ACC, EVA, move/attack range, `jump`, `flying`), CT value, grid position, facing. `export var sprite_sheet` for per-character sheets; `export var simple_sheet` switches to the new 1024×1024 format. Animation priority: raise-hands → attack one-shot (`play_attack_anim()`) → weak pose (auto when HP < 35%) → walk. `flash()` briefly brightens the sprite as a selection indicator. `heal(amount)` and `play_raise_hands(duration)` for item use. |
 | `movement.gd` | BFS flood fill for reachable cells; A* pathfinding. Tile highlights: blue = move, red = attack, green = item targets. |
 | `ai_controller.gd` | Greedy enemy logic: close on nearest player unit, attack if in range; async — uses `_after_ai_move` callback after walk animation completes |
 | `camera_controller.gd` | A/D rotate 90° (lerp-smoothed), W/S zoom (3 levels), orthographic isometric projection. |
@@ -107,6 +107,7 @@ CHARIOT_SELECT             ← branching timeline panel; rewind to any prior sna
 ## Next Steps
 
 - ~~**Unit stats panel**~~ — done. Blue/red panel slides in from screen edge; portrait, HP, full stats. Clickable from world and turn order bar.
+- ~~**Simple sprite format**~~ — done. New 1024×1024 spritesheet format (sprites-simple.md) with larger 64×160 frames. Knight uses krel.png with walk, attack, and weak-pose animations. `simple_sheet` flag on `unit.gd` keeps legacy soldier.png units working. Weary animation (status ailment) and flying animation (Seriph) are defined in the format but not yet wired to game states.
 - **Victory/defeat screen** — battle ends when all units on one side die but there is no end-state UI. Add a simple "Victory" / "Defeat" overlay to complete the game loop.
 - **More map variety** — the 6×6 map with two elevated tiles is minimal. A larger or more interesting layout (greater height variation, chokepoints) would make movement and the jump stat more meaningful.
 - **More item types** — the sub-menu scaffolding supports multiple entries. A damage item (e.g. bomb, red targeting) or a buff item would make the item slot genuinely tactical rather than just healing.

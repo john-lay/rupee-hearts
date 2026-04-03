@@ -160,7 +160,11 @@ func _populate(unit) -> void:
 
 	var img := Image.new()
 	img.load(unit.sprite_sheet)
-	var crop_rect = PORTRAIT_ALLY_RECT if unit.team == unit.Team.PLAYER else PORTRAIT_ENEMY_RECT
+	var crop_rect: Rect2
+	if unit.get("simple_sheet"):
+		crop_rect = Rect2(800, 0, 224, 288)
+	else:
+		crop_rect = PORTRAIT_ALLY_RECT if unit.team == unit.Team.PLAYER else PORTRAIT_ENEMY_RECT
 	var crop := img.get_rect(crop_rect)
 	var tex := ImageTexture.new()
 	tex.create_from_image(crop, 0)

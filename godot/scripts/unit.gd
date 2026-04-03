@@ -52,7 +52,10 @@ var _walk_t:          float   = 0.0
 var _map_data                 = null  # cached from place_on_grid
 
 # --- Sprite sheet ---
-export var sprite_sheet: String = "res://assets/sprites/soldier.png"
+export var sprite_sheet:  String = "res://assets/sprites/soldier.png"
+export var simple_sheet:  bool   = false   # true = new 1024×1024 simple format
+
+# --- Legacy sheet constants (soldier.png) ---
 const _FRAME_W    = 16
 const _FRAME_H    = 40
 const _FRAME_Y    = 0
@@ -73,6 +76,30 @@ const _RAISE_HANDS_H    = 32
 const _CELL_ALLIED = Vector2(0,   0)
 const _CELL_ENEMY  = Vector2(344, 0)
 
+# --- Simple sheet constants (sprites-simple.md format) ---
+# 1024×1024, 32×32 cells, 64×160 walk frames, 0.015 px/unit → 0.96×2.4 in-game
+const _SS_PIXEL_SIZE      = 0.015
+const _SS_FRAME_W         = 64
+const _SS_FRAME_H         = 160
+const _SS_ANIM_FPS        = 2.0
+const _SS_SW_Y            = 32    # SW walk/raise/attack/weary band top
+const _SS_NW_Y            = 192   # NW walk/raise/attack/weary band top
+# Walk frames: left foot, together, right foot, together (ping-pong)
+const _SS_WALK_X          = [128, 224, 320, 224]
+# Weary frames: reserved for status ailment effect (same row as walk, ping-pong)
+const _SS_WEARY_X         = [32, 128, 224, 128]
+# Weak (one knee): low-HP pose — SW/NW share y=864 but use different x; h=128
+const _SS_WEAK_Y          = 864
+const _SS_WEAK_H          = 128
+const _SS_WEAK_SW_X       = 32
+const _SS_WEAK_NW_X       = 128
+const _SS_WEAK_THRESH     = 0.35  # show weak pose below this HP ratio
+# Attack frames: prep, strike, follow-through (96px wide, one-shot)
+const _SS_ATTACK_X        = [416, 544, 672]
+const _SS_ATTACK_W        = 96
+const _SS_ATTACK_DURATION = 1.5   # 3 frames at 2fps
+const _SS_RAISE_HANDS_X   = 32
+
 # --- Node references ---
 var _sprite: Sprite3D
 var _hp_bar_root: Spatial
@@ -82,6 +109,7 @@ var _camera_ref: Camera = null
 
 var _anim_time: float = 0.0
 var _raise_hands_timer: float = 0.0
+var _attack_anim_timer: float = 0.0
 var _flash_timer: float = 0.0
 const _FLASH_DURATION: float = 0.35
 
@@ -99,11 +127,13 @@ func _create_sprite() -> void:
 	var tex := ImageTexture.new()
 	tex.create_from_image(img, 0)  # nearest-neighbour, no mipmaps
 	_sprite.texture        = tex
-	_sprite.pixel_size     = _PIXEL_SIZE
+	_sprite.pixel_size     = _SS_PIXEL_SIZE if simple_sheet else _PIXEL_SIZE
 	_sprite.billboard = 1  # BILLBOARD_ENABLED: fully faces camera, sprite looks correct
 	_sprite.alpha_cut = 1  # ALPHA_CUT_DISCARD: pixel art transparency via discard, GLES2-safe
 	_sprite.region_enabled = true
-	_sprite.translation.y  = _FRAME_H * _PIXEL_SIZE * 0.35
+	var px = _SS_PIXEL_SIZE if simple_sheet else _PIXEL_SIZE
+	var fh = _SS_FRAME_H    if simple_sheet else _FRAME_H
+	_sprite.translation.y  = fh * px * 0.35
 	add_child(_sprite)
 	_update_sprite()
 
@@ -137,11 +167,22 @@ func play_raise_hands(duration: float) -> void:
 	_raise_hands_timer = duration
 
 
+func play_attack_anim() -> void:
+	_attack_anim_timer = _SS_ATTACK_DURATION
+
+
 func flash() -> void:
 	_flash_timer = _FLASH_DURATION
 
 
 func _update_sprite() -> void:
+	if simple_sheet:
+		_update_sprite_simple()
+	else:
+		_update_sprite_legacy()
+
+
+func _update_sprite_legacy() -> void:
 	if not _sprite:
 		return
 	var params = _get_sprite_params()
@@ -159,10 +200,47 @@ func _update_sprite() -> void:
 	_sprite.region_rect = Rect2(cell.x + offsets[frame], cell.y + _FRAME_Y, _FRAME_W, _FRAME_H)
 
 
+func _update_sprite_simple() -> void:
+	if not _sprite:
+		return
+	var cam_yaw := 0.0
+	if _camera_ref:
+		cam_yaw = fmod(_camera_ref.get_parent().rotation_degrees.y, 360.0)
+		if cam_yaw < 0.0:
+			cam_yaw += 360.0
+	var cam_index := int(cam_yaw / 90.0) % 4
+	# dir: 0=NW, 1=SE(mirrored SW), 2=NE(mirrored NW), 3=SW
+	var dir = _SPRITE_LOOKUP[cam_index][facing]
+	var is_sw = (dir == 1 or dir == 3)
+	_sprite.flip_h = (dir == 1 or dir == 2)
+	var row_y = _SS_SW_Y if is_sw else _SS_NW_Y
+
+	# Priority: raise-hands → attack → weary → walk
+	if _raise_hands_timer > 0.0:
+		_sprite.region_rect = Rect2(_SS_RAISE_HANDS_X, row_y, _SS_FRAME_W, _SS_FRAME_H)
+		return
+
+	if _attack_anim_timer > 0.0:
+		var elapsed = _SS_ATTACK_DURATION - _attack_anim_timer
+		var frame = min(int(elapsed * _SS_ANIM_FPS), 2)
+		_sprite.region_rect = Rect2(_SS_ATTACK_X[frame], row_y, _SS_ATTACK_W, _SS_FRAME_H)
+		return
+
+	if float(hp) / float(max_hp) < _SS_WEAK_THRESH:
+		var weak_x = _SS_WEAK_SW_X if is_sw else _SS_WEAK_NW_X
+		_sprite.region_rect = Rect2(weak_x, _SS_WEAK_Y, _SS_FRAME_W, _SS_WEAK_H)
+		return
+
+	var frame = int(_anim_time * _SS_ANIM_FPS) % 4
+	_sprite.region_rect = Rect2(_SS_WALK_X[frame], row_y, _SS_FRAME_W, _SS_FRAME_H)
+
+
 func _process(delta: float) -> void:
 	_anim_time += delta
 	if _raise_hands_timer > 0.0:
 		_raise_hands_timer = max(0.0, _raise_hands_timer - delta)
+	if _attack_anim_timer > 0.0:
+		_attack_anim_timer = max(0.0, _attack_anim_timer - delta)
 
 	if _flash_timer > 0.0:
 		_flash_timer = max(0.0, _flash_timer - delta)
