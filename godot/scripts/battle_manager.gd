@@ -66,8 +66,7 @@ var _facing_chooser: Control = null
 var _facing_next_state: int = State.SELECT_ACTION
 
 var _post_move_callback = null  # FuncRef or null, called after walk animation finishes
-var _portrait_ally:  ImageTexture = null
-var _portrait_enemy: ImageTexture = null
+var _portrait_cache: Dictionary = {}  # unit_name → ImageTexture
 var _weather: Node = null
 
 var _pending_target = null   # unit selected for attack, waiting for confirm
@@ -131,14 +130,6 @@ func _update_active_indicator() -> void:
 
 
 func _start_battle() -> void:
-	var img = Image.new()
-	img.load("res://assets/sprites/soldier.png")
-	var ally_crop = img.get_rect(Rect2(352, 712, 48, 64))
-	_portrait_ally = ImageTexture.new()
-	_portrait_ally.create_from_image(ally_crop, 0)
-	var enemy_crop = img.get_rect(Rect2(408, 712, 48, 64))
-	_portrait_enemy = ImageTexture.new()
-	_portrait_enemy.create_from_image(enemy_crop, 0)
 	_weather = load("res://scripts/weather_system.gd").new()
 	var ui = get_node("../UI")
 	ui.add_child(_weather)
@@ -614,7 +605,7 @@ func _show_confirm_bar() -> void:
 	var hit_chance: int = _calc_hit_chance(active_unit, _pending_target)
 	var dir_mult: float = _get_attack_dir_mult(active_unit, _pending_target)
 	var height_diff: int = _effective_height(active_unit) - _effective_height(_pending_target)
-	var est_dmg: int = max(1, int(active_unit.attack * dir_mult) - _pending_target.defense)
+	var est_dmg: int = int(max(1, int(active_unit.attack * dir_mult) - _pending_target.defense))
 	if height_diff > 0:
 		est_dmg = int(est_dmg * 1.15)
 	elif height_diff < 0:
@@ -779,7 +770,7 @@ func _spawn_units() -> void:
 	var UnitScript = load("res://scripts/unit.gd")
 
 	var player_configs = [
-		{name = "Knight", team = UnitScript.Team.PLAYER, hp = 28, atk = 10, def = 6, spd = 8,  move = 3, range = 1, acc = 55, eva = 5,  sheet = "res://assets/sprites/krel.png",    simple = true},
+		{name = "Krel",   team = UnitScript.Team.PLAYER, hp = 28, atk = 10, def = 6, spd = 8,  move = 3, range = 1, acc = 55, eva = 5,  sheet = "res://assets/sprites/krel.png",    simple = true},
 		{name = "Archer", team = UnitScript.Team.PLAYER, hp = 20, atk = 9,  def = 3, spd = 12, move = 3, range = 2, acc = 60, eva = 10, sheet = "res://assets/sprites/soldier.png", simple = false},
 	]
 	var enemy_configs = [
@@ -971,10 +962,10 @@ func _build_chariot_card(snap: Dictionary, indent: int, is_current: bool, is_on_
 		spacer.rect_min_size = Vector2(indent * 16, 0)
 		row.add_child(spacer)
 
-	# Portrait — pre-cropped texture keeps nearest-neighbour filtering
-	if _portrait_ally:
+	# Portrait — loaded per-unit from portrait cache
+	if _portrait_cache.has(snap.acting_unit_name):
 		var portrait := TextureRect.new()
-		portrait.texture = _portrait_ally if snap.acting_unit_team == 0 else _portrait_enemy
+		portrait.texture = _portrait_cache[snap.acting_unit_name]
 		portrait.expand = true
 		portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		portrait.rect_min_size = Vector2(24, 32)
@@ -1038,6 +1029,16 @@ func _spawn_unit(scene, cfg: Dictionary, grid_pos: Vector2) -> void:
 		unit.sprite_sheet = cfg.sheet
 	if cfg.has("simple"):
 		unit.simple_sheet = cfg.simple
+	var _img = Image.new()
+	_img.load(unit.sprite_sheet)
+	var _crop_rect: Rect2
+	if unit.simple_sheet:
+		_crop_rect = Rect2(800, 0, 224, 288)
+	else:
+		_crop_rect = Rect2(352, 712, 48, 64) if unit.team == 0 else Rect2(408, 712, 48, 64)
+	var _tex := ImageTexture.new()
+	_tex.create_from_image(_img.get_rect(_crop_rect), 0)
+	_portrait_cache[unit.unit_name] = _tex
 	units_node.add_child(unit)
 	unit.place_on_grid(int(grid_pos.x), int(grid_pos.y), map_data)
 	map_data.set_unit_at(int(grid_pos.x), int(grid_pos.y), unit)

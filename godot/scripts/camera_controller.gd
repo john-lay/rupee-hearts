@@ -35,10 +35,10 @@ func _input(event: InputEvent) -> void:
 			KEY_A:
 				_target_yaw -= ROTATE_STEP
 			KEY_W:
-				_zoom_index = max(0, _zoom_index - 1)
+				_zoom_index = int(max(0, _zoom_index - 1))
 				_apply_camera()
 			KEY_S:
-				_zoom_index = min(ZOOM_LEVELS.size() - 1, _zoom_index + 1)
+				_zoom_index = int(min(ZOOM_LEVELS.size() - 1, _zoom_index + 1))
 				_apply_camera()
 
 

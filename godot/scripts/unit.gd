@@ -81,7 +81,7 @@ const _CELL_ENEMY  = Vector2(344, 0)
 const _SS_PIXEL_SIZE      = 0.015
 const _SS_FRAME_W         = 64
 const _SS_FRAME_H         = 160
-const _SS_ANIM_FPS        = 2.0
+const _SS_ANIM_FPS        = 5.0
 const _SS_SW_Y            = 32    # SW walk/raise/attack/weary band top
 const _SS_NW_Y            = 192   # NW walk/raise/attack/weary band top
 # Walk frames: left foot, together, right foot, together (ping-pong)

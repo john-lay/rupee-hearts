@@ -4,26 +4,33 @@ const PREVIEW_COUNT = 5
 const CARD_WIDTH    = 160
 const PORTRAIT_W    = 24   # 0.5× integer scale of the 48px source
 const PORTRAIT_H    = 32   # 0.5× integer scale of the 64px source
-const SHEET_PATH    = "res://assets/sprites/soldier.png"
 
 var _turn_manager   = null
 var _battle_manager = null
-var _portrait_ally:  ImageTexture = null
-var _portrait_enemy: ImageTexture = null
+var _img_cache: Dictionary = {}  # sheet path → Image
 var _footer: VBoxContainer = null
 
 
 func _ready() -> void:
-	var img = Image.new()
-	img.load(SHEET_PATH)
-	var ally_crop = img.get_rect(Rect2(352, 712, 48, 64))
-	_portrait_ally = ImageTexture.new()
-	_portrait_ally.create_from_image(ally_crop, 0)   # flags=0: nearest-neighbour
-	var enemy_crop = img.get_rect(Rect2(408, 712, 48, 64))
-	_portrait_enemy = ImageTexture.new()
-	_portrait_enemy.create_from_image(enemy_crop, 0)
 	_footer = VBoxContainer.new()
 	add_child(_footer)
+
+
+func _get_portrait_texture(unit) -> ImageTexture:
+	var path: String = unit.sprite_sheet
+	if not _img_cache.has(path):
+		var img = Image.new()
+		img.load(path)
+		_img_cache[path] = img
+	var img: Image = _img_cache[path]
+	var crop_rect: Rect2
+	if unit.get("simple_sheet"):
+		crop_rect = Rect2(800, 0, 224, 288)
+	else:
+		crop_rect = Rect2(352, 712, 48, 64) if unit.team == 0 else Rect2(408, 712, 48, 64)
+	var tex := ImageTexture.new()
+	tex.create_from_image(img.get_rect(crop_rect), 0)
+	return tex
 
 
 func add_to_footer(node: Control) -> void:
@@ -81,7 +88,7 @@ func _add_card(unit, is_active: bool) -> void:
 
 	# Portrait — pre-cropped texture keeps nearest-neighbour filtering
 	var portrait := TextureRect.new()
-	portrait.texture = _portrait_ally if unit.team == 0 else _portrait_enemy
+	portrait.texture = _get_portrait_texture(unit)
 	portrait.expand = true
 	portrait.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	portrait.rect_min_size = Vector2(PORTRAIT_W, PORTRAIT_H)
