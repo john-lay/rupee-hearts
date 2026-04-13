@@ -1,6 +1,10 @@
-# rupee-hearts
+# Rupee Hearts
 
-A tactical RPG in the style of Final Fantasy Tactics and Vandal Hearts.
+![rupee-hearts-logo](assets/rupee-hearts-logo.png)
+
+A tactical RPG in the style of Final Fantasy Tactics and Vandal Hearts, set in the Zelda universe.
+
+AI assisted assets and code.
 
 ## Prototype
 
