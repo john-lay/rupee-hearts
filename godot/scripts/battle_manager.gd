@@ -71,8 +71,9 @@ var _weather: Node = null
 
 var _pending_target = null   # unit selected for attack, waiting for confirm
 var _confirm_bar: Control = null
-var _stats_left  = null
-var _stats_right = null
+var _stats_left   = null
+var _stats_right  = null
+var _game_over_screen = null
 
 
 func _process(delta: float) -> void:
@@ -130,6 +131,8 @@ func _update_active_indicator() -> void:
 
 
 func _start_battle() -> void:
+	_game_over_screen = load("res://scripts/game_over_screen.gd").new()
+	get_node("..").add_child(_game_over_screen)
 	_weather = load("res://scripts/weather_system.gd").new()
 	var ui = get_node("../UI")
 	ui.add_child(_weather)
@@ -166,6 +169,11 @@ func _create_debug_checkbox() -> void:
 	sprite_btn.connect("pressed", self, "_on_sprite_debug_pressed")
 	hbox.add_child(sprite_btn)
 
+	var game_over_btn := Button.new()
+	game_over_btn.text = "Game Over"
+	game_over_btn.connect("pressed", self, "_on_game_over_pressed")
+	hbox.add_child(game_over_btn)
+
 	get_node("../UI").add_child(hbox)
 
 
@@ -180,6 +188,11 @@ func _on_rain_toggled(on: bool) -> void:
 
 func _on_sprite_debug_pressed() -> void:
 	get_tree().change_scene("res://scenes/sprite_debug.tscn")
+
+
+func _on_game_over_pressed() -> void:
+	_change_state(State.BATTLE_OVER)
+	_game_over_screen.show_screen(0)
 
 
 # --- State machine ---
@@ -740,9 +753,11 @@ func _check_battle_over() -> void:
 	if not players_alive:
 		_change_state(State.BATTLE_OVER)
 		emit_signal("battle_over", load("res://scripts/unit.gd").Team.ENEMY)
+		_game_over_screen.show_screen(load("res://scripts/unit.gd").Team.ENEMY)
 	elif not enemies_alive:
 		_change_state(State.BATTLE_OVER)
 		emit_signal("battle_over", load("res://scripts/unit.gd").Team.PLAYER)
+		_game_over_screen.show_screen(load("res://scripts/unit.gd").Team.PLAYER)
 
 
 # --- Helpers ---

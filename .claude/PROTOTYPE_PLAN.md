@@ -21,7 +21,7 @@ Main (Spatial)
 ├── TurnManager          ← CT system, who acts next
 ├── OccluderManager      ← fades tiles that block unit visibility
 ├── Units (Spatial)      ← container for all unit instances
-│   ├── Knight (Unit)
+│   ├── Krel (Unit)
 │   ├── Archer (Unit)
 │   ├── Goblin (Unit)
 │   └── Goblin2 (Unit)
@@ -38,7 +38,8 @@ Main (Spatial)
 
 | Script | Responsibility |
 |--------|---------------|
-| `battle_manager.gd` | Top-level state machine; coordinates all other systems. Manages item stock, spawns floating numbers, resolves combat with directional and height multipliers. `inspect_unit(unit)` flashes the sprite and slides in the appropriate stats panel; called by world clicks and turn order bar clicks. |
+| `battle_manager.gd` | Top-level state machine; coordinates all other systems. Manages item stock, spawns floating numbers, resolves combat with directional and height multipliers. `inspect_unit(unit)` flashes the sprite and slides in the appropriate stats panel; called by world clicks and turn order bar clicks. Instantiates `game_over_screen.gd` at startup and calls `show_screen()` when a side is eliminated. |
+| `game_over_screen.gd` | CanvasLayer (layer=10) shown on BATTLE_OVER. Displays a full-screen illustrated overlay with animated YES/NO cursor selection. Left/Right to navigate, Enter to confirm. YES reloads the scene; NO quits. Positions scaled proportionally from the 1408×768 reference resolution. |
 | `unit_stats_panel.gd` | Reusable bottom-corner panel. `show_unit(unit)` slides in (or cross-slides) showing portrait, HP, and full stat grid in blue (ally) or red (enemy). `sprite_sheet` is cropped for the portrait. |
 | `turn_manager.gd` | CT tick loop; determines whose turn it is. `TurnOrderBar` cards are clickable — clicking calls `battle_manager.inspect_unit()`. |
 | `map_data.gd` | Grid queries: is cell walkable, who occupies it, cell height |
@@ -107,8 +108,8 @@ CHARIOT_SELECT             ← branching timeline panel; rewind to any prior sna
 ## Next Steps
 
 - ~~**Unit stats panel**~~ — done. Blue/red panel slides in from screen edge; portrait, HP, full stats. Clickable from world and turn order bar.
-- ~~**Simple sprite format**~~ — done. New 1024×1024 spritesheet format (sprites-simple.md) with larger 64×160 frames. Knight uses krel.png with walk, attack, and weak-pose animations. `simple_sheet` flag on `unit.gd` keeps legacy soldier.png units working. Weary animation (status ailment) and flying animation (Seriph) are defined in the format but not yet wired to game states.
-- **Victory/defeat screen** — battle ends when all units on one side die but there is no end-state UI. Add a simple "Victory" / "Defeat" overlay to complete the game loop.
+- ~~**Simple sprite format**~~ — done. New 1024×1024 spritesheet format (sprites-simple.md) with larger 64×160 frames. Krel uses krel.png with walk, attack, and weak-pose animations. `simple_sheet` flag on `unit.gd` keeps legacy soldier.png units working. Weary animation (status ailment) and flying animation (Seriph) are defined in the format but not yet wired to game states.
+- ~~**Victory/defeat screen**~~ — done. `game_over_screen.gd` (CanvasLayer, layer=10) shows a full-screen illustrated overlay with YES/NO choice. Left/Right navigates, Enter confirms. YES reloads the scene, NO quits. Triggered by `_check_battle_over()` in battle_manager. Testable via "Game Over" button in the debug bar.
 - **More map variety** — the 6×6 map with two elevated tiles is minimal. A larger or more interesting layout (greater height variation, chokepoints) would make movement and the jump stat more meaningful.
 - **More item types** — the sub-menu scaffolding supports multiple entries. A damage item (e.g. bomb, red targeting) or a buff item would make the item slot genuinely tactical rather than just healing.
 - **Status effects** — `accuracy_mod` and `evasion_mod` buff/debuff slots exist on units but nothing applies them. A simple Slow or Blind effect would add tactical depth without major new systems.

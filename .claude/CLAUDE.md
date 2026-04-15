@@ -25,6 +25,7 @@ Main (Spatial)
 └── UI (CanvasLayer)
     ├── ActionMenu   — Move / Attack / Item / Wait / Cancel buttons; Item opens a sub-list
     └── TurnOrderBar — CT preview bar
+(GameOverScreen CanvasLayer added dynamically by BattleManager at startup — not in main.tscn)
 ```
 
 ## Key Scripts
@@ -36,6 +37,7 @@ Main (Spatial)
 | `unit_stats_panel.gd` | Bottom-corner panel (blue = ally, red = enemy). `show_unit(unit)` slides in from the screen edge using margin tweening (left panel slides left, right panel slides right). Loads portrait from `unit.sprite_sheet`. Built entirely in code; `unit_stats_panel.tscn` is minimal. |
 | `movement.gd` | BFS flood fill for reachable cells, A* for pathing. Tile highlights use an inline GLSL shader (fill + pulsing border): blue = move, red = attack, green = item targets. Jump stat gates height traversal; flying units ignore climb cap. |
 | `unit.gd` | Stats (including `jump` and `flying`), HP bar (3D MeshInstance), name label (2D Label projected via `unproject_position`), CT, facing direction. `export var sprite_sheet` for per-character sheets; `export var simple_sheet` (bool) switches to the new 1024×1024 format (64×160 walk frames, SW/NW in separate row bands at y=32/192, weak pose at y=864). Animation priority in simple-sheet mode: raise-hands → attack one-shot (`play_attack_anim()`, 3×96px frames) → weak pose (auto when HP < 35%) → walk. Legacy soldier.png units use the old constants unchanged. `flash()` briefly brightens sprite as selection feedback. Tile-by-tile walk animation via `walk_path()`; emits `move_finished` signal when done. `heal(amount)` updates HP and bar. `play_raise_hands(duration)` shows the raise-hands sprite frame for the given duration. |
+| `game_over_screen.gd` | CanvasLayer (layer=10), instantiated by BattleManager at startup. `show_screen(winner_team)` displays a full-screen illustrated overlay (1408×768 reference) with YES/NO cursor. Uses `_input` + `set_input_as_handled()` to prevent LEFT/RIGHT being consumed by UI focus navigation. YES = reload scene, NO = quit. |
 | `turn_manager.gd` | Ticks all units' CT by their speed each frame until one hits 100, then emits `turn_ready`. |
 | `occluder_manager.gd` | Each frame checks neighbours in the camera's direction for each unit. Tiles taller than the unit are swapped out of GridMap; top layer replaced with a dithered MeshInstance (25% discard, GLES2-safe). Restored when no longer occluding. |
 | `camera_controller.gd` | A/D = 90° discrete rotation (lerp-smoothed), 4 isometric positions. W/S = 3 orthographic zoom levels (7/10/14), default mid. Orthographic projection at 35.264° elevation. |
@@ -51,6 +53,7 @@ These have caused bugs before — don't repeat them:
 - **MeshInstances created in `_ready()` may not render** — create them in `call_deferred("_start_battle")` or later.
 - **`Color` is a value type** — `mat.albedo_color.a = x` modifies a copy. Always assign the full Color: `mat.albedo_color = Color(r, g, b, a)`.
 - **Godot editor rewrites `main.tscn`** — every time the editor is opened and closed, it regenerates the scene file. Always close the editor before editing `.tscn` files manually.
+- **Arrow keys consumed by UI focus navigation** — `_unhandled_input` never sees LEFT/RIGHT when any Control node has focus. Use `_input` + `get_tree().set_input_as_handled()` for overlay screens that must capture directional keys reliably.
 
 ## Established Patterns
 
